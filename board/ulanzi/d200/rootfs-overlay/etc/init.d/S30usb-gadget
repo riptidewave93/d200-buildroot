@@ -15,11 +15,6 @@ USB_FUNCTIONS="hid raw ncm msc"
 [ -r /etc/default/usb-gadget ] && . /etc/default/usb-gadget
 
 G=/sys/kernel/config/usb_gadget/d200
-# USB Ethernet addresses if the CPU serial is missing (no IPv6)
-DEV_IP4=172.31.254.1
-PEER_IP4=172.31.254.2
-DEV_IP6=
-NET6=
 UDHCPD_CONF=/tmp/udhcpd-usb.conf
 UDHCPD_PID=/var/run/udhcpd-usb.pid
 RADVD_CONF=/tmp/radvd-usb.conf
@@ -111,37 +106,25 @@ add_function() {
 	ln -s $f configs/c.1/
 }
 
-# Per-device addresses from serial $1, the same as d200-deck's netid package:
-# h = SHA-256("d200-net\0" + lowercase serial); the top 15 bits of h pick a /30
-# in 198.18.0.0/15 (deck .1, PC .2), the next 40 an IPv6 ULA /64 (deck ::1).
-# Sets DEV_IP4 PEER_IP4 DEV_IP6 NET6.
-netid() {
-	s=$(printf %s "$1" | tr A-F a-f)
-	h=$(printf 'd200-net\000%s' "$s" | sha256sum | cut -c1-14)
-	n=$(( (0x$(echo $h | cut -c1-4) >> 1) << 2 ))
-	p="198.$((18 + (n >> 16))).$(((n >> 8) & 255))"
-	DEV_IP4="$p.$(((n & 255) + 1))"
-	PEER_IP4="$p.$(((n & 255) + 2))"
-	g="fd$(echo $h | cut -c5-6):$(echo $h | cut -c7-10):$(echo $h | cut -c11-14)"
-	NET6="$g::/64"
-	DEV_IP6="$g::1"
-}
-
-# net4= from the settings, if it's a unicast address: sets DEV_IP4 PEER_IP4
-net4() {
-	a=$(setting net4)
-	echo "$a" | grep -qE '^((0|[1-9][0-9]{0,2})\.){3}(0|[1-9][0-9]{0,2})$' || return
-	set -- $(echo "$a" | tr . ' ')
-	[ "$1" -ge 1 ] && [ "$1" -le 223 ] && [ "$1" != 127 ] &&
-		[ "$2" -le 255 ] && [ "$3" -le 255 ] && [ "$4" -le 255 ] || return
-	DEV_IP4="$1.$2.$3.$(( ($4 & 252) + 1 ))"
-	PEER_IP4="$1.$2.$3.$(( ($4 & 252) + 2 ))"
-}
-
-# Sets DEV_IP4 PEER_IP4 DEV_IP6 NET6
+# The USB Ethernet addresses, from deckd usb-net: derived from the CPU serial
+# (198.18.0.0/15 and an IPv6 ULA), or net4= in the settings. Without it, the
+# fallback below. Sets DEV_IP4 PEER_IP4 DEV_IP6 NET6.
 addresses() {
-	[ -r /proc/device-tree/serial-number ] && netid "$(serial)"
-	net4
+	DEV_IP4=172.31.254.1
+	PEER_IP4=172.31.254.2
+	DEV_IP6=
+	NET6=
+	out=$(/usr/bin/deckd usb-net) || return 0
+	while IFS== read -r k v; do
+		case "$k" in
+		DEV_IP4) DEV_IP4=$v ;;
+		PEER_IP4) PEER_IP4=$v ;;
+		DEV_IP6) DEV_IP6=$v ;;
+		NET6) NET6=$v ;;
+		esac
+	done <<-EOF
+		$out
+	EOF
 }
 
 stop_pid() {

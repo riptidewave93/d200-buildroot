@@ -103,7 +103,8 @@ suspended (asleep, or the device selectively suspended), writes to `/dev/hidg0` 
 
 **USB Ethernet:** the D200 is `d200-<serial>.local` over mDNS, where `<serial>` is its USB serial number (the CPU
 serial, lowercase); debug builds: `ssh root@d200-<serial>.local`. Each D200 has its own addresses, derived from the
-serial so several D200s on one PC don't clash (the same scheme as `netid` in d200-deck):
+serial so several D200s on one PC don't clash. `deckd usb-net` computes them (d200-deck's `netid`) for
+`S30usb-gadget`:
 
 - IPv4: a `/30` in `198.18.0.0/15`. The D200 is the first address; its DHCP server gives the PC the second, with no
   gateway and no DNS, so the PC keeps its normal network.
