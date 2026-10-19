@@ -14,6 +14,7 @@
 
 | Item | Notes |
 |---|---|
+| Clean resume after PC sleep | When the PC resumes it sends GET_STATUS; dwc2 fails to reply (`dwc2_hsotg_send_reply: cannot queue req`, ep0 still busy) and the PC resets the D200. The deck recovers, but the config channel drops |
 | Wake the PC from sleep | dwc2 has no gadget remote wakeup (`.wakeup` op): patch it, set `bmAttributes` to `0xa0`, and have deckd trigger a wakeup (UDC `srp`) when a key is pressed while the bus is suspended. The PC must allow the device to wake it |
 | Updates without fastboot (OTA) | A/B kernel and rootfs volumes, a `/data` volume for the config, U-Boot boot counter with a `slot` variable, numeric `VERSION_ID` and git tags. Changes the UBI layout, so it needs a full reinstall |
 | Linux udev rule | `uaccess` for the config channel's hidraw node, so the website works without root |
