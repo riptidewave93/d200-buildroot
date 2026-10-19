@@ -3,8 +3,7 @@
 Flashing over USB-C with fastboot, and the NAND layout. For the usual ways to update, see [update.md](update.md);
 coming from the stock firmware, see [install.md](install.md) first.
 
-To get the board into fastboot: run `reboot-to fastboot` on it (debug builds, over SSH or the UART), or hold the **top-left key**
-while it boots. If neither works, see [recovery.md](recovery.md).
+To get the board into fastboot, see [recovery.md](recovery.md#11-fastboot-key).
 
 ## NAND layout
 
@@ -42,8 +41,7 @@ From a build's `output/<date>-<flavour>/` folder, with the board in fastboot:
 A full install resets the U-Boot environment, `/data` (settings) and a custom splash. `--linux` keeps them, and
 makes the board boot slot A. It creates missing volumes with the sizes above.
 
-U-Boot always uses its own built-in environment; a saved one can only set the A/B variables (`slot`,
-`upgrade_available`, `bootcount`, `ota_result`). So a U-Boot update brings its new defaults with it.
+A U-Boot update brings its new default environment with it ([ota.md](ota.md#boot)).
 
 ## Fastboot reference
 

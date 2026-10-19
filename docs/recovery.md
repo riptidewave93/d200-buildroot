@@ -51,8 +51,8 @@ exist in debug builds; a release build only prints its boot log.
 | Maskrom from SPL | Hold or repeat **Ctrl-B** while powering on (SPL checks during its first 100 ms). Works when U-Boot proper is broken |
 
 Flashing over the UART alone (slow, for when USB is unusable): load each file with `loady <addr>`, then
-`mtd erase` / `mtd write` it to the partitions in [flashing.md](flashing.md#nand-layout). Write `idbloader.img` to
-all four IDB copies, at `0x0`, `0x40000`, `0x80000` and `0xc0000`, without skipping bad blocks.
+`mtd erase` / `mtd write` it to the partitions in [flashing.md](flashing.md#nand-layout). Write `idbloader-x4.img`
+(all four IDB copies) at `0x0`, without skipping bad blocks.
 
 ## 3. Hardware short (last resort)
 

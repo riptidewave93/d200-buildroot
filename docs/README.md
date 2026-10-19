@@ -13,4 +13,6 @@
 | [todo.md](todo.md) | What's next |
 | [read-unlock/](read-unlock/README.md) | A patched Rockchip loader that reads the whole flash, for backups without `adb` |
 
-Project status: see the [top-level README](../README.md#status).
+Project status: see the [top-level README](../README.md#status). The key app, PC helper and config format are in
+[d200-deck](https://github.com/riptidewave93/d200-deck), the configuration website in
+[d200-configure](https://github.com/riptidewave93/d200-configure).

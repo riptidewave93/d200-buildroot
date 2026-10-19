@@ -59,6 +59,6 @@ rkdeveloptool boot d200-usb-loader.bin       # hold the top-left key
 ./flash-fastboot.sh
 ```
 The board then reboots into Linux. With a debug build you get `ssh root@d200-<serial>.local` over the USB cable (no
-password; `<serial>` is the D200's USB serial number, e.g. from `lsusb -v -d 1d6b:0104`) and a root shell on the UART;
+password; the README on the D200's USB drive shows its name and addresses) and a root shell on the UART;
 release builds have neither. An install fills slot A; updates go to the other slot. To update later, see
 [update.md](update.md).

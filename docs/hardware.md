@@ -1,6 +1,6 @@
 # D200 hardware
 
-The Ulanzi D200 is a stream controller: 14 keys (one double-wide) in front of one LCD, USB-C, no network.
+The Ulanzi D200 is a stream controller: 14 keys (one double-wide) in front of one LCD, USB-C, no Wi-Fi or Ethernet port.
 
 | Part | Details |
 |---|---|
@@ -41,7 +41,8 @@ init sequence over bit-banged SPI). 720x1280 at ~36 Hz; software draws in landsc
 
 ### Screen layout
 
-Each key is a window onto the panel. In the 1280x720 landscape framebuffer:
+Each key is a window onto the panel. In the 1280x720 landscape framebuffer (the exact windows are d200-deck's
+[`render.Key`](https://github.com/riptidewave93/d200-deck/blob/main/render/render.go)):
 
 | Key | Visible area (approx.) |
 |---|---|
@@ -51,7 +52,9 @@ Each key is a window onto the panel. In the 1280x720 landscape framebuffer:
 
 ## Keys
 
-Key codes: [linux.md](linux.md#display-and-keys). Used by the bootloader:
+Key codes: [linux.md](linux.md#display-and-keys); key numbers in the config:
+[d200-deck config.md](https://github.com/riptidewave93/d200-deck/blob/main/docs/config.md#keys). Used by the
+bootloader:
 - **Top-left**: "Hold for Fastboot" in U-Boot.
 - **Top-left + bottom-left**: maskrom from SPL.
 
@@ -74,5 +77,4 @@ this step; their open U-Boot and kernel sources don't.
 | R9602 | The pad nearest the SoC, shorted to GND (e.g. a mounting screw), blocks the flash → maskrom |
 | SPI NAND (WSON-8) | Pin 1 is CS#, pin 8 is VCC, next to each other. Shorting them also forces maskrom |
 
-The UART adapter can back-power the SoC through TX: unplug it for a real power cycle. Procedure:
-[recovery.md](recovery.md#3-hardware-short-last-resort).
+Procedure: [recovery.md](recovery.md#3-hardware-short-last-resort).

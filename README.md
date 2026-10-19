@@ -12,8 +12,16 @@ root filesystem, all flashed over USB with fastboot.
 |---|---|
 | U-Boot | Boots from SPI NAND, boot screens on the display, fastboot flashing, recovery keys (fastboot, maskrom) |
 | Linux | Boots in ~3 s from UBI, from A/B slots with automatic rollback and updates from a web page ([update](docs/update.md)); read-only root, settings in `/data`. Display, keys, CPU scaling (408-816 MHz) with thermal throttling. Over the USB-C cable: a USB keyboard (HID), the config channel (vendor HID), USB Ethernet (per-device addresses, `d200-<serial>.local`) and a read-only USB drive |
-| Key app | [`deckd`](https://github.com/riptidewave93/d200-deck): pages of buttons, media keys, key combos and macros over USB HID. The PC app and the config website are in progress |
-| Not done | Waking the PC from sleep, our own USB VID:PID, Windows ([to do](docs/todo.md)) |
+| Key app | [`deckd`](https://github.com/riptidewave93/d200-deck): pages of buttons, media keys, key combos and macros over USB HID. Set up from the [configuration website](https://riptidewave93.github.io/d200-configure/); [`deckhost`](https://github.com/riptidewave93/d200-deck/blob/main/docs/deckhost.md), the PC helper, runs on Linux and Windows |
+| Not done | Testing a key press waking the PC from sleep, our own USB VID:PID (optional) ([to do](docs/todo.md)) |
+
+## The D200 project
+
+| Repo | What |
+|---|---|
+| [d200-buildroot](https://github.com/riptidewave93/d200-buildroot) | The firmware: U-Boot, Linux, the root filesystem; installing, updating, recovery |
+| [d200-deck](https://github.com/riptidewave93/d200-deck) | `deckd` (keys and update page on the device), `deckhost` (the PC helper), the config format and USB API |
+| [d200-configure](https://github.com/riptidewave93/d200-configure) | The configuration website: https://riptidewave93.github.io/d200-configure/ |
 
 ## Versions
 
@@ -97,8 +105,7 @@ docs/                              documentation
 
 ## Docs
 
-[Install](docs/install.md) · [Update](docs/update.md) · [Flashing](docs/flashing.md) · [Recovery](docs/recovery.md) ·
-[Hardware](docs/hardware.md) · [U-Boot](docs/u-boot.md) · [Linux](docs/linux.md) · [A/B updates](docs/ota.md) · [all docs](docs/README.md)
+Start with [Install](docs/install.md); everything else is listed in [docs/README.md](docs/README.md).
 
 ## License
 

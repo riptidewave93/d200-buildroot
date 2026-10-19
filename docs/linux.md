@@ -90,7 +90,10 @@ Functions are set in `/etc/default/usb-gadget`:
 | `msc` | Read-only USB drive "D200 DECK" with a README, including the D200's name and addresses | `/tmp/usb-drive.img`: a RAM copy of `/usr/share/d200/usb-drive.img` (built from `board/ulanzi/d200/usb-drive/`) with the README filled in at boot and when the addresses change |
 
 The order is the interface order, and it is fixed: always-on functions first, the drive last, so turning the drive off
-renumbers nothing. `bcdDevice` is the USB layout version.
+renumbers nothing. `bcdDevice` is the USB layout version: it changes when the always-on interfaces or the OS
+descriptors change, not with the drive setting. Microsoft OS descriptors (vendor code `0xcd`) give NCM the `WINNCM`
+compatible ID, so Windows binds its NCM driver without an INF; keep them. The functions use 5 of the controller's 6
+IN endpoints ([hardware.md](hardware.md#usb)); HID input reports stay at 64 bytes or less.
 
 **Settings** are `KEY=value` lines in `/data/usb-gadget.conf`. A missing or invalid value means the default:
 
@@ -109,8 +112,8 @@ suspended (asleep, or the device selectively suspended), writes to `/dev/hidg0` 
 
 **USB Ethernet:** the D200 is `d200-<serial>.local` over mDNS, where `<serial>` is its USB serial number (the CPU
 serial, lowercase); debug builds: `ssh root@d200-<serial>.local`. Each D200 has its own addresses, derived from the
-serial so several D200s on one PC don't clash. `deckd usb-net` computes them (d200-deck's `netid`) for
-`S30usb-gadget`:
+serial so several D200s on one PC don't clash. `deckd usb-net` computes them (d200-deck's
+[`netid`](https://github.com/riptidewave93/d200-deck/tree/main/netid)) for `S30usb-gadget`:
 
 - IPv4: a `/30` in `198.18.0.0/15`. The D200 is the first address; its DHCP server gives the PC the second, with no
   gateway and no DNS, so the PC keeps its normal network.
