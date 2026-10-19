@@ -45,6 +45,7 @@ builds have neither. Services:
 
 | Service | What |
 |---|---|
+| `S10loopback` | Brings up `lo` (`127.0.0.1`, `::1`); there are no ifupdown network scripts |
 | `S15watchdog` | Feeds `/dev/watchdog`. U-Boot starts it with a 60 s timeout, so a hung system resets |
 | `S30usb-gadget` | USB functions; USB Ethernet addresses, DHCP server (udhcpd) and IPv6 router advertisements (radvd); the hostname `d200-<serial>` |
 | `S50dropbear` | Debug builds only. SSH server on USB Ethernet (the only network); root without a password. Includes SFTP, so `scp`/`sftp` work |
