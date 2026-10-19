@@ -4,8 +4,7 @@
 
 | Item | Where |
 |---|---|
-| Test the PC sleep fix (kernel patch 0013): sleep and wake the PC; the D200 must not be reset, and its log must not show `dwc2_hsotg_send_reply: cannot queue req` | d200-buildroot |
-| Test waking the PC with a key (kernel patch 0014, deckd writing `srp` on `EAGAIN`), on Linux and Windows | both |
+| Test waking the PC with a key (kernel patch 0014, deckd writing `srp` when a key report times out), on Linux and Windows. On hold: with wakeup enabled on the test PC's root hub (`usb1`, shared with Bluetooth, a mic and a fan controller), the PC won't sleep (`hcd_pci_suspend returns -16`). Next: disable wakeup on the D200 only to see whether it or another device blocks it, or try a port on another controller | both |
 
 ## Later
 
