@@ -7,6 +7,7 @@ You need `fastboot` (Android platform tools) and, for maskrom, `rkdeveloptool`.
 
 | What's broken | Use |
 |---|---|
+| A bad update | Nothing: U-Boot goes back to the previous slot by itself ([ota.md](ota.md#boot)) |
 | Linux (U-Boot still starts) | [1.1 Fastboot key](#11-fastboot-key) |
 | U-Boot proper | [1.2 Maskrom keys](#12-maskrom-keys) or [1.3 automatic maskrom](#13-automatic-maskrom) |
 | SPL / IDB (nothing on screen, keys don't reach maskrom) | [3. Hardware short](#3-hardware-short-last-resort) |
@@ -24,7 +25,7 @@ fastboot devices          # shows the board's serial
 
 ### 1.2 Maskrom keys
 From a debug build's shell: `reboot-to maskrom`. Or hold the **top-left and bottom-left keys** while plugging in USB-C.
-SPL checks them before loading U-Boot proper, so this works even when U-Boot proper is broken. The screen stays dark.
+SPL checks them first thing, before DRAM and the NAND are set up, so this works even when U-Boot proper is broken. The screen stays dark.
 
 Then run U-Boot from RAM and continue as in 1.1:
 ```bash
@@ -51,7 +52,7 @@ exist in debug builds; a release build only prints its boot log.
 
 Flashing over the UART alone (slow, for when USB is unusable): load each file with `loady <addr>`, then
 `mtd erase` / `mtd write` it to the partitions in [flashing.md](flashing.md#nand-layout). Write `idbloader.img` to
-all four IDB slots.
+all four IDB copies, at `0x0`, `0x40000`, `0x80000` and `0xc0000`, without skipping bad blocks.
 
 ## 3. Hardware short (last resort)
 

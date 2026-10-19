@@ -5,14 +5,15 @@ about 3 seconds and uses ~28 MiB of its ~115 MiB `MemTotal` with the key app run
 
 ## Boot
 
-U-Boot reads `kernel.itb` from the UBI volume `kernel` and boots it. The FIT image holds the gzipped kernel and the
-D200 device tree (`board/ulanzi/d200/kernel.its`). The root filesystem is UBIFS in the volume `rootfs`.
+U-Boot boots one of two slots, A or B ([ota.md](ota.md#boot)): it reads `kernel.itb` from the UBI volume
+`kernel_a` or `kernel_b` and boots it. The FIT image holds the gzipped kernel and the D200 device tree
+(`board/ulanzi/d200/kernel.its`). The root filesystem is UBIFS in `rootfs_a` or `rootfs_b`, mounted read-only.
 
-The kernel command line is built into the kernel:
+U-Boot sets the kernel command line, for slot A:
 ```
-console=ttyS2,1500000n8 earlycon ubi.mtd=ubi root=ubi0:rootfs rootfstype=ubifs rw panic=10
+console=ttyS2,1500000n8 earlycon ubi.mtd=ubi rootfstype=ubifs ro panic=10 root=ubi0:rootfs_a d200.slot=a
 ```
-Setting `bootargs` in U-Boot replaces it (e.g. `fastboot oem run:setenv bootargs ...`).
+The kernel has slot A's line built in, for when U-Boot passes none.
 
 ## Kernel
 
@@ -46,20 +47,26 @@ builds have neither. Services:
 
 | Service | What |
 |---|---|
+| `S00data` | Mounts the UBI volume `data` at `/data` (formats it if it doesn't mount), and empties `/data/update` |
 | `S10loopback` | Brings up `lo` (`127.0.0.1`, `::1`); there are no ifupdown network scripts |
 | `S15watchdog` | Feeds `/dev/watchdog`. U-Boot starts it with a 60 s timeout, so a hung system resets |
 | `S30usb-gadget` | USB functions; USB Ethernet addresses, DHCP server (udhcpd) and IPv6 router advertisements (radvd); the hostname `d200-<serial>` |
 | `S50dropbear` | Debug builds only. SSH server on USB Ethernet (the only network); root without a password. Includes SFTP, so `scp`/`sftp` work |
 | `S50mdnsd` | mDNS on USB Ethernet: answers for `d200-<serial>.local` and advertises the web server (`_http._tcp`), plus SSH in debug builds |
-| `S60deckd` | `deckd`, the key app ([d200-deck](https://github.com/riptidewave93/d200-deck), packaged in `package/d200-deck`). Work in progress |
+| `S60deckd` | `deckd`, the key app ([d200-deck](https://github.com/riptidewave93/d200-deck), packaged in `package/d200-deck`), config in `/data/deckd`. Work in progress |
 | syslogd, klogd | BusyBox defaults. Logs go to `/var/log/messages`, in RAM (`/var/log` is `/tmp`), about 400 KB at most |
 
 Files added to Buildroot's default skeleton live in `board/ulanzi/d200/rootfs-overlay/`.
 
+The root filesystem is read-only. Everything kept across boots lives in `/data` (UBIFS, 100 MiB): the key app's
+config, the random seed (`/data/seedrng`), the SSH host key (debug builds, `/etc/dropbear` links to
+`/data/dropbear`), and an incoming update (`/data/update`). The U-Boot env (slot and update state) is read and
+written with `fw_printenv` / `fw_setenv`.
+
 **Flash writes** are kept rare to spare the SPI NAND. Logs, leases and PID files live in RAM (`/tmp`, `/run`), and
 UBIFS doesn't update access times (`UBIFS_ATIME_SUPPORT` is off), so reading files writes nothing. What does write:
-the random seed (`/var/lib/seedrng`, at boot and shutdown), UBI's fastmap (once per boot), the SSH host key (debug
-builds, once), and anything copied onto the device. UBI spreads erases over all blocks and handles bad blocks.
+the random seed (at boot and shutdown), UBI's fastmap (once per boot), the SSH host key (debug builds, once),
+config changes, and updates. UBI spreads erases over all blocks and handles bad blocks.
 
 `reboot-to [normal|fastboot|maskrom]` (`package/d200-utils`) reboots into a boot mode: `fastboot` makes U-Boot start
 fastboot, `maskrom` makes the BootROM enter USB download mode, `normal` (the default) just reboots.

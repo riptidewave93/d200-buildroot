@@ -11,9 +11,9 @@ root filesystem, all flashed over USB with fastboot.
 | Part | State |
 |---|---|
 | U-Boot | Boots from SPI NAND, boot screens on the display, fastboot flashing, recovery keys (fastboot, maskrom) |
-| Linux | Boots in ~3 s from UBI. Display, keys, CPU scaling (408-816 MHz) with thermal throttling. Over the USB-C cable: a USB keyboard (HID), the config channel (vendor HID), USB Ethernet (per-device addresses, `d200-<serial>.local`) and a read-only USB drive |
+| Linux | Boots in ~3 s from UBI, from A/B slots with automatic rollback; read-only root, settings in `/data`. Display, keys, CPU scaling (408-816 MHz) with thermal throttling. Over the USB-C cable: a USB keyboard (HID), the config channel (vendor HID), USB Ethernet (per-device addresses, `d200-<serial>.local`) and a read-only USB drive |
 | Key app | [`deckd`](https://github.com/riptidewave93/d200-deck): pages of buttons, media keys, key combos and macros over USB HID. The PC app and the config website are in progress |
-| Not done | Updates without fastboot, waking the PC from sleep, our own USB VID:PID, Windows ([to do](docs/todo.md)) |
+| Not done | Updates over USB Ethernet (the system side is done, the updater `deck-update` is in progress), waking the PC from sleep, our own USB VID:PID, Windows ([to do](docs/todo.md)) |
 
 ## Versions
 
@@ -44,15 +44,16 @@ Recovery (the fastboot key, the maskrom key combo) works in both. Each flavour b
 | File | What |
 |---|---|
 | `flash-fastboot.sh` | Flashes the images below over fastboot ([flashing.md](docs/flashing.md)) |
-| `idbloader.img` | TPL (rkbin DDR init) + U-Boot SPL, for the `idbloader` partition |
+| `idbloader.img` | TPL (rkbin DDR init) + U-Boot SPL, one 256 KiB copy for the `idbloader` partition |
 | `u-boot.itb` | U-Boot FIT (BL31 + U-Boot + DTB), for `u-boot` and `u-boot-backup` |
-| `kernel.itb` | Kernel FIT (Image.gz + DTB), for the `kernel` UBI volume |
-| `rootfs.ubifs` | Root filesystem, for the `rootfs` UBI volume |
-| `ubi.img` | The whole `ubi` partition (`kernel` + `rootfs`), for a full install |
+| `kernel.itb` | Kernel FIT (Image.gz + DTB), for the `kernel_a` / `kernel_b` UBI volumes |
+| `rootfs.ubifs` | Root filesystem, for the `rootfs_a` / `rootfs_b` UBI volumes |
+| `ubi.img` | The whole `ubi` partition (env, slot A, empty `/data`), for a full install |
 | `d200-usb-loader.bin` | Runs U-Boot from RAM over USB, from maskrom: `rkdeveloptool boot d200-usb-loader.bin` |
 | `u-boot-rockchip-usb471.bin`, `-usb472.bin` | The two stages packed into `d200-usb-loader.bin` |
 | `d200-full.img` | The whole install as one image, for `rkdeveloptool wl 0` ([install.md](docs/install.md#3-flash)) |
 | `rk3308_loader_wo_ftl.bin` | Rockchip's raw NAND loader (rkbin), which `rkdeveloptool` needs to write `d200-full.img` |
+| `d200-<version>-<flavour>-update.tar` | Update bundle for `deck-update` ([ota.md](docs/ota.md#bundle)) |
 | `SHA256SUMS` | Checksums of the above |
 | `d200-<version>-<flavour>.tar.gz` | All of the above in one archive, for releases (`<version>` is this repo's `git describe`) |
 
@@ -79,9 +80,10 @@ board/ulanzi/d200/
   rootfs-overlay/                  files added to the root filesystem (init scripts, SSH settings)
   usb-drive/                       contents of the read-only USB drive
   kernel.its, ubinize.cfg          kernel FIT and UBI image layouts
+  idb-layout.py                    lays out idbloader.img for power-cut-safe updates
   logo/                            boot and fastboot screens (BMPs) and their generator
   flash-fastboot.sh                host flashing script (copied next to the images)
-  post-build.sh, post-image.sh     build the USB drive image, the USB loader, kernel.itb and ubi.img
+  post-build.sh, post-image.sh     build the USB drive image, the USB loader, kernel.itb, ubi.img and the update bundle
 package/d200-rkbin/                rkbin at a selectable commit
 package/d200-utils/                reboot-to
 package/d200-deck/                 deckd, the key app (Go; source: github.com/riptidewave93/d200-deck)
@@ -92,7 +94,7 @@ docs/                              documentation
 ## Docs
 
 [Install](docs/install.md) · [Flashing](docs/flashing.md) · [Recovery](docs/recovery.md) ·
-[Hardware](docs/hardware.md) · [U-Boot](docs/u-boot.md) · [Linux](docs/linux.md) · [all docs](docs/README.md)
+[Hardware](docs/hardware.md) · [U-Boot](docs/u-boot.md) · [Linux](docs/linux.md) · [Updates](docs/ota.md) · [all docs](docs/README.md)
 
 ## License
 

@@ -60,4 +60,5 @@ rkdeveloptool boot d200-usb-loader.bin       # hold the top-left key
 ```
 The board then reboots into Linux. With a debug build you get `ssh root@d200-<serial>.local` over the USB cable (no
 password; `<serial>` is the D200's USB serial number, e.g. from `lsusb -v -d 1d6b:0104`) and a root shell on the UART;
-release builds have neither. For later updates, see [flashing.md](flashing.md).
+release builds have neither. An install fills slot A; updates go to the other slot ([ota.md](ota.md)). For
+flashing later builds by hand, see [flashing.md](flashing.md).

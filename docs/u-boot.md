@@ -4,10 +4,12 @@ Mainline U-Boot **v2026.10** plus the patch series in `board/ulanzi/d200/patches
 (defconfig `ulanzi-d200-rk3308`). BL31 and the DDR init (TPL) come from rkbin via the `d200-rkbin` package.
 
 What the board does at boot:
-1. SPL: checks the maskrom key combo (and Ctrl-B in debug builds), then loads `u-boot.itb` from `u-boot`, falling back to
-   `u-boot-backup`, falling back to maskrom.
+1. SPL: checks the maskrom key combo first thing (before DRAM, the console and the NAND are set up), and Ctrl-B in
+   debug builds. Then it loads `u-boot.itb` from `u-boot`, falling back to `u-boot-backup`, falling back to maskrom.
 2. U-Boot: reads the CPU serial from OTP, shows the boot screen, offers the fastboot key for 1.5 s.
-3. Boots Linux: `ubi read` the FIT image from the `kernel` UBI volume, `bootm` it.
+3. Boots Linux from slot A or B (`d200_boot`): `ubi read` the FIT image from `kernel_<slot>`, `bootm` it with
+   `root=ubi0:rootfs_<slot> ro d200.slot=<slot>`. If that slot doesn't boot, it boots the other one. Updates and
+   the boot counter are in [ota.md](ota.md#boot).
 
 The console is the UART only, and only in debug builds. Release builds (`board/ulanzi/d200/uboot-release.fragment`)
 boot without a prompt, and wait in fastboot if Linux doesn't boot. The panel sits behind the keys, so it only shows
@@ -34,6 +36,9 @@ the boot screens.
 | 15 | board: rockchip: add Ulanzi D200 | Board target and defconfig: env in UBI, fastboot, display probe, optional UBI splash, boot command |
 | 16 | board: ulanzi: d200: add a key combination to enter maskrom from SPL | Top-left + bottom-left keys → maskrom |
 | 17 | board: ulanzi: d200: hold the top-left key to enter fastboot | "Hold for Fastboot" |
+| 18 | fastboot: mtd: write some partitions at fixed offsets | `idbloader`: no bad-block skipping (the copies must stay put), last block first |
+| 19 | board: ulanzi: d200: boot A/B slots with a boot counter | A/B boot, rollback after 3 failed boots, saved env limited to the A/B variables |
+| 20 | board: ulanzi: d200: check the maskrom keys first thing in SPL | The keys work even if a later SPL stage is broken |
 
 Patches 10, 13 and 14 (RK3308 VOP node, RK3308B-S dtsi, D200 device tree) are also Linux patches, so both use the
 same DT. U-Boot sets `vdd_core` to 1.015 V at start (`regulator-init-microvolt` in the U-Boot-only dtsi).
@@ -46,8 +51,10 @@ same DT. U-Boot sets `vdd_core` to 1.015 V at start (`regulator-init-microvolt` 
   modes). Patches can't carry binary files, so `external.mk` copies them into the U-Boot tree after patching:
   `d200-boot-logo.bmp` → `drivers/video/u_boot_logo.bmp`, `d200-fastboot.bmp` → `board/ulanzi/d200/d200_fastboot.bmp`.
 - **Watchdog.** It can already be running when U-Boot starts, so the DesignWare watchdog driver is enabled.
-- **Environment** lives in UBI (`env`/`env_r`). A saved env overrides new defaults; to reset it, see
-  [flashing.md](flashing.md#flashing).
+- **Environment.** The defaults are in `board/ulanzi/d200/ulanzi-d200.env` (U-Boot tree). The saved env lives in UBI
+  (`env`/`env_r`), and can only set `slot`, `upgrade_available`, `bootcount` and `ota_result`
+  (`ENV_WRITEABLE_LIST`); everything else always comes from the running U-Boot. `setenv` at the prompt still works
+  for the session.
 - **RAM.** The fastboot buffer is 32 MiB at `0x02000000`. The kernel FIT loads at `kernel_addr_r` (`0x02080000`);
   U-Boot itself lives above ~`0x046d0000`.
 
