@@ -2,8 +2,8 @@ config BR2_PACKAGE_D200_RKBIN
 	bool "d200-rkbin"
 	depends on BR2_aarch64
 	help
-	  Rockchip rkbin blobs (BL31, DDR init TPL) and the boot_merger tool,
-	  at a selectable rkbin commit. Buildroot's own rockchip-rkbin package
+	  Rockchip rkbin blobs (BL31, DDR init TPL), the boot_merger tool and
+	  the raw NAND loader for rkdeveloptool, at a selectable rkbin commit. Buildroot's own rockchip-rkbin package
 	  pins an older rkbin and has no version override.
 
 	  https://github.com/rockchip-linux/rkbin

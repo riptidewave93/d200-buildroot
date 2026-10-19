@@ -51,12 +51,10 @@ Recovery (the fastboot key, the maskrom key combo) works in both. Each flavour b
 | `ubi.img` | The whole `ubi` partition (`kernel` + `rootfs`), for a full install |
 | `d200-usb-loader.bin` | Runs U-Boot from RAM over USB, from maskrom: `rkdeveloptool boot d200-usb-loader.bin` |
 | `u-boot-rockchip-usb471.bin`, `-usb472.bin` | The two stages packed into `d200-usb-loader.bin` |
+| `d200-full.img` | The whole install as one image, for `rkdeveloptool wl 0` ([install.md](docs/install.md#3-flash)) |
+| `rk3308_loader_wo_ftl.bin` | Rockchip's raw NAND loader (rkbin), which `rkdeveloptool` needs to write `d200-full.img` |
 | `SHA256SUMS` | Checksums of the above |
 | `d200-<version>-<flavour>.tar.gz` | All of the above in one archive, for releases (`<version>` is this repo's `git describe`) |
-
-There is no single raw image for `rkdeveloptool`: it can't skip the NAND's bad blocks, and UBI needs that. Instead
-`rkdeveloptool` only starts U-Boot from RAM, and `flash-fastboot.sh` writes everything
-([install.md](docs/install.md#3-flash)).
 
 Other targets:
 ```

@@ -4,7 +4,7 @@ Replacing the stock firmware takes three steps: back it up, enter maskrom, flash
 firmware isn't signed and nothing here burns efuses, so with the backup you can always go back.
 
 You need, on a Linux PC:
-- `adb` and `fastboot` (Android platform tools);
+- `adb`, and `fastboot` unless you flash with `rkdeveloptool` only (Android platform tools);
 - [`rkdeveloptool`](https://github.com/rockchip-linux/rkdeveloptool);
 - the images from a build: `make build` in this repo, then use `output/<date>-<flavour>/`.
 
@@ -40,13 +40,24 @@ Check: `rkdeveloptool list` shows a `Maskrom` device.
 
 ## 3. Flash
 
-Run U-Boot from RAM while holding the **top-left key**, so it enters fastboot (the screen shows a USB plug and
-"Fastboot"). Then flash everything:
+Either way replaces all stock data.
+
+**rkdeveloptool only** (one image, nothing else needed):
+```bash
+cd output/<date>-<flavour>
+rkdeveloptool db rk3308_loader_wo_ftl.bin    # Rockchip's raw NAND loader
+rkdeveloptool ef                             # erase everything first: leftovers confuse UBI
+rkdeveloptool wl 0 d200-full.img
+rkdeveloptool rd
+```
+
+**Fastboot** (skips bad blocks, so it is the safer choice on a NAND that has some): run U-Boot from RAM while
+holding the **top-left key**, so it enters fastboot (the screen shows a USB plug and "Fastboot"), then flash:
 ```bash
 cd output/<date>-<flavour>
 rkdeveloptool boot d200-usb-loader.bin       # hold the top-left key
 ./flash-fastboot.sh
 ```
-This replaces all stock data. The board then reboots into Linux. With a debug build you get `ssh root@172.31.254.1`
+The board then reboots into Linux. With a debug build you get `ssh root@172.31.254.1`
 over the USB cable (no password) and a root shell on the UART; release builds have neither. For later updates, see
 [flashing.md](flashing.md).

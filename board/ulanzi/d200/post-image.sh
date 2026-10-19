@@ -7,6 +7,8 @@
 #   rootfs.ubifs    root filesystem for the "rootfs" UBI volume (built by Buildroot)
 #   ubi.img         the whole "ubi" partition: kernel + rootfs volumes (ubinize.cfg)
 #   flash-fastboot.sh     flashes all of the above over USB fastboot
+#   d200-full.img   idbloader x4 + u-boot + u-boot-backup + ubi, for
+#                   rkdeveloptool with rk3308_loader_wo_ftl.bin (from d200-rkbin)
 set -e
 
 INI="$BINARIES_DIR/d200-usb-loader.ini"
@@ -45,4 +47,14 @@ if [ -f "$BINARIES_DIR/Image.gz" ]; then
 	# 128 KiB blocks, 2 KiB pages, no sub-pages
 	(cd "$BINARIES_DIR" && "$HOST_DIR/sbin/ubinize" -o ubi.img -p 128KiB -m 2048 -s 2048 \
 		"$(dirname "$0")/ubinize.cfg")
+
+	# The start of the NAND as flashed: erased (0xff) padding up to the ubi partition
+	FULL="$BINARIES_DIR/d200-full.img"
+	head -c 9M /dev/zero | tr '\0' '\377' > "$FULL"
+	for i in 0 1 2 3; do
+		dd if="$BINARIES_DIR/idbloader.img" of="$FULL" bs=256K seek=$i conv=notrunc status=none
+	done
+	dd if="$BINARIES_DIR/u-boot.itb" of="$FULL" bs=1M seek=1 conv=notrunc status=none
+	dd if="$BINARIES_DIR/u-boot.itb" of="$FULL" bs=1M seek=5 conv=notrunc status=none
+	cat "$BINARIES_DIR/ubi.img" >> "$FULL"
 fi
