@@ -49,9 +49,14 @@ builds have neither. Services:
 | `S30usb-gadget` | USB functions, USB Ethernet address, DHCP server |
 | `S50dropbear` | Debug builds only. SSH server on `172.31.254.1` only; root without a password. Includes SFTP, so `scp`/`sftp` work |
 | `S60deckd` | `deckd`, the key app ([d200-deck](https://github.com/riptidewave93/d200-deck), packaged in `package/d200-deck`). Work in progress |
-| syslogd, klogd, crond | BusyBox defaults. Logs go to `/var/log/messages` |
+| syslogd, klogd | BusyBox defaults. Logs go to `/var/log/messages`, in RAM (`/var/log` is `/tmp`), about 400 KB at most |
 
 Files added to Buildroot's default skeleton live in `board/ulanzi/d200/rootfs-overlay/`.
+
+**Flash writes** are kept rare to spare the SPI NAND. Logs, leases and PID files live in RAM (`/tmp`, `/run`), and
+UBIFS doesn't update access times (`UBIFS_ATIME_SUPPORT` is off), so reading files writes nothing. What does write:
+the random seed (`/var/lib/seedrng`, at boot and shutdown), UBI's fastmap (once per boot), the SSH host key (debug
+builds, once), and anything copied onto the device. UBI spreads erases over all blocks and handles bad blocks.
 
 `reboot-to [normal|fastboot|maskrom]` (`package/d200-utils`) reboots into a boot mode: `fastboot` makes U-Boot start
 fastboot, `maskrom` makes the BootROM enter USB download mode, `normal` (the default) just reboots.

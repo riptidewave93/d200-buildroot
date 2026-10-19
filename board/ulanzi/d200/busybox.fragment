@@ -1,2 +1,5 @@
 # udhcpd: DHCP server for the USB Ethernet gadget
 CONFIG_UDHCPD=y
+# No cron jobs on the device
+# CONFIG_CROND is not set
+# CONFIG_CRONTAB is not set
