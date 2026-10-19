@@ -1,6 +1,7 @@
 # Debug build, merged on top of ulanzi_d200_defconfig:
 # root shell on the UART (no login), SSH + SFTP over USB Ethernet (root, no
-# password), modetest, and the stock U-Boot console.
+# password), modetest, mtd-utils (nanddump, nandwrite, ubinfo...) and the stock
+# U-Boot console.
 BR2_TARGET_GENERIC_GETTY=y
 BR2_TARGET_GENERIC_GETTY_PORT="ttyS2"
 BR2_TARGET_GENERIC_GETTY_OPTIONS="-n -l /bin/sh"
@@ -8,5 +9,6 @@ BR2_PACKAGE_DROPBEAR=y
 BR2_PACKAGE_GESFTPSERVER=y
 BR2_PACKAGE_LIBDRM=y
 BR2_PACKAGE_LIBDRM_INSTALL_TESTS=y
+BR2_PACKAGE_MTD=y
 BR2_TARGET_UBOOT_CONFIG_FRAGMENT_FILES=""
 BR2_ROOTFS_POST_SCRIPT_ARGS="debug"
