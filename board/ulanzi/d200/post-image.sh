@@ -1,6 +1,7 @@
 #!/bin/sh
 # Collect the D200 boot images and build a USB loader for rkdeveloptool.
-#   idbloader.img   TPL+SPL, written 4x to SPI NAND 0x0/0x40000/0x80000/0xc0000
+#   idbloader.img   one 256 KiB IDB copy (TPL+SPL), written 4x to SPI NAND
+#                   0x0/0x40000/0x80000/0xc0000 (idb-layout.py)
 #   u-boot.itb      U-Boot FIT, written to "u-boot" (0x100000) and "u-boot-backup" (0x500000)
 #   d200-usb-loader.bin   for `rkdeveloptool boot` from maskrom (runs U-Boot from RAM)
 #   kernel.itb      kernel FIT image (Image.gz + DTB) for the "kernel" UBI volume
@@ -10,6 +11,11 @@
 #   d200-full.img   idbloader x4 + u-boot + u-boot-backup + ubi, for
 #                   rkdeveloptool with rk3308_loader_wo_ftl.bin (from d200-rkbin)
 set -e
+
+# mkimage puts the TPL+SPL right after the header; move it to the second block
+# (idempotent, so a rebuild without U-Boot can run this again)
+python3 "$(dirname "$0")/idb-layout.py" "$BINARIES_DIR/idbloader.img" "$BINARIES_DIR/idbloader.img.new"
+mv "$BINARIES_DIR/idbloader.img.new" "$BINARIES_DIR/idbloader.img"
 
 INI="$BINARIES_DIR/d200-usb-loader.ini"
 cat > "$INI" <<INI

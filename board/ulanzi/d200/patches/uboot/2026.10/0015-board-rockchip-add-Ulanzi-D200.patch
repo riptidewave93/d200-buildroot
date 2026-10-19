@@ -39,7 +39,7 @@ target and config header.
 
 Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
 ---
- arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi   |  63 +++++++++
+ arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi   |  50 +++++++
  arch/arm/mach-rockchip/rk3308/Kconfig         |   5 +
  board/ulanzi/d200/Kconfig                     |  12 ++
  board/ulanzi/d200/MAINTAINERS                 |   8 ++
@@ -48,7 +48,7 @@ Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
  configs/ulanzi-d200-rk3308_defconfig          | 123 ++++++++++++++++++
  .../src/arm64/rockchip/rk3308-ulanzi-d200.dts |   6 +
  include/configs/ulanzi_d200.h                 |  17 +++
- 9 files changed, 334 insertions(+)
+ 9 files changed, 321 insertions(+)
  create mode 100644 arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi
  create mode 100644 board/ulanzi/d200/Kconfig
  create mode 100644 board/ulanzi/d200/MAINTAINERS
@@ -59,10 +59,10 @@ Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
 
 diff --git a/arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi b/arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi
 new file mode 100644
-index 00000000..7ce6ea7b
+index 00000000..3bec9cd0
 --- /dev/null
 +++ b/arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,50 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +
 +#include "rk3308-u-boot.dtsi"
@@ -102,19 +102,6 @@ index 00000000..7ce6ea7b
 +&{/spi@ff4c0000/flash@0} {
 +	bootph-pre-ram;
 +	bootph-some-ram;
-+};
-+
-+/* Fastboot writes the boot partitions, which are read-only for Linux */
-+&{/spi@ff4c0000/flash@0/partitions/partition@0} {
-+	/delete-property/ read-only;
-+};
-+
-+&{/spi@ff4c0000/flash@0/partitions/partition@100000} {
-+	/delete-property/ read-only;
-+};
-+
-+&{/spi@ff4c0000/flash@0/partitions/partition@500000} {
-+	/delete-property/ read-only;
 +};
 +
 +/* Bind before relocation so the framebuffer gets reserved */
@@ -422,10 +409,10 @@ index 00000000..87e6a68f
 +CONFIG_CONSOLE_RECORD=y
 +CONFIG_FASTBOOT_CMD_OEM_CONSOLE=y
 diff --git a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
-index 514bb3af..cdd96d87 100644
+index 7acf4aa6..c279b4a7 100644
 --- a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
 +++ b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
-@@ -372,5 +372,11 @@
+@@ -369,5 +369,11 @@
  
  &usb20_otg {
  	dr_mode = "peripheral";

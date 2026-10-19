@@ -28,8 +28,8 @@ SPI NAND layout:
 Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
 ---
  arch/arm64/boot/dts/rockchip/Makefile         |   1 +
- .../boot/dts/rockchip/rk3308-ulanzi-d200.dts  | 382 ++++++++++++++++++
- 2 files changed, 383 insertions(+)
+ .../boot/dts/rockchip/rk3308-ulanzi-d200.dts  | 379 ++++++++++++++++++
+ 2 files changed, 380 insertions(+)
  create mode 100644 arch/arm64/boot/dts/rockchip/rk3308-ulanzi-d200.dts
 
 diff --git a/arch/arm64/boot/dts/rockchip/Makefile b/arch/arm64/boot/dts/rockchip/Makefile
@@ -46,10 +46,10 @@ index 761d82b4f..f8ef25065 100644
  dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3326-anbernic-rg351v.dtb
 diff --git a/arch/arm64/boot/dts/rockchip/rk3308-ulanzi-d200.dts b/arch/arm64/boot/dts/rockchip/rk3308-ulanzi-d200.dts
 new file mode 100644
-index 000000000..cdd96d873
+index 000000000..c279b4a72
 --- /dev/null
 +++ b/arch/arm64/boot/dts/rockchip/rk3308-ulanzi-d200.dts
-@@ -0,0 +1,382 @@
+@@ -0,0 +1,379 @@
 +// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 +/*
 + * Ulanzi D200 stream controller (RK3308B-S, 128 MiB DDR3, GD5F2GM7 SPI NAND,
@@ -292,7 +292,7 @@ index 000000000..cdd96d873
 +		 * U-Boot from "u-boot", falling back to "u-boot-backup".
 +		 * Everything else lives in UBI, except the last 1 MiB, which
 +		 * the Rockchip loader keeps for itself. The boot partitions are
-+		 * only written from the bootloader (fastboot).
++		 * written by fastboot and by the system updater.
 +		 */
 +		partitions {
 +			compatible = "fixed-partitions";
@@ -302,19 +302,16 @@ index 000000000..cdd96d873
 +			partition@0 {
 +				label = "idbloader";
 +				reg = <0x0 0x100000>;
-+				read-only;
 +			};
 +
 +			partition@100000 {
 +				label = "u-boot";
 +				reg = <0x100000 0x400000>;
-+				read-only;
 +			};
 +
 +			partition@500000 {
 +				label = "u-boot-backup";
 +				reg = <0x500000 0x400000>;
-+				read-only;
 +			};
 +
 +			partition@900000 {

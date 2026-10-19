@@ -17,7 +17,7 @@
 #     --no-reboot     stay in fastboot when done
 #
 # The BootROM reads up to 4 copies of idbloader.img at 0, 256, 512 and
-# 768 KiB, so the "idbloader" partition gets an image with 4 padded copies.
+# 768 KiB, so the "idbloader" partition gets an image with 4 copies.
 set -e
 # UBI volume sizes for --linux, when the volumes don't exist yet (as in ubinize.cfg)
 KERNEL_VOL_SIZE=0x1000000
