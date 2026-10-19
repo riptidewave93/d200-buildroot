@@ -3,6 +3,8 @@ BUILDROOT_REPO := https://gitlab.com/buildroot.org/buildroot.git
 BUILDROOT_VER := d04496c8c14a84c6ff9f23a023eb70eea61c683a
 # release (no SSH, no root shell, U-Boot console locked down) or debug
 FLAVOR ?= release
+# Builds of each flavour kept in ./output (0: keep all)
+KEEP ?= 3
 
 DOCKER_IMAGE := riptidewave93/d200-buildroot-builder:latest
 DOCKER_NAME := d200-buildroot-builder
@@ -10,7 +12,7 @@ DOCKER_NAME := d200-buildroot-builder
 REPO_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 DOCKER_RUN := docker run --rm $(shell [ -t 0 ] && echo -it) \
 	--user $(shell id -u):$(shell id -g) -e HOME=/tmp \
-	-e FLAVOR=$(FLAVOR) -v "$(REPO_DIR)":/repo:Z -w /repo --name $(DOCKER_NAME) $(DOCKER_IMAGE)
+	-e FLAVOR=$(FLAVOR) -e KEEP=$(KEEP) -v "$(REPO_DIR)":/repo:Z -w /repo --name $(DOCKER_NAME) $(DOCKER_IMAGE)
 
 .PHONY: build builder-build build-builder-docker shell clean reset
 

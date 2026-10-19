@@ -39,7 +39,8 @@ make build FLAVOR=debug   # debug image
 
 Recovery (the fastboot key, the maskrom key combo) works in both. Each flavour builds in its own
 `BuildEnv/output-<flavour>/`. The first build takes a while (toolchain, kernel, Go). Images land in
-`output/<date>-<flavour>/` (the last 3 of each are kept):
+`output/<date>-<flavour>/`. The last 3 builds of each flavour are kept; `KEEP=<n>` changes that, `KEEP=0` keeps
+all:
 
 | File | What |
 |---|---|
