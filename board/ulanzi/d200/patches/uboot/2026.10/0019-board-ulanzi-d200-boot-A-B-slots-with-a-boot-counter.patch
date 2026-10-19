@@ -1,0 +1,98 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Mon, 19 Oct 2026 13:55:01 -0500
+Subject: [PATCH] board: ulanzi: d200: boot A/B slots with a boot counter
+
+Boot Linux from one of two slots in the "ubi" partition: kernel_a and
+rootfs_a, or kernel_b and rootfs_b. "slot" picks the slot; if it doesn't
+boot (empty or damaged volume, bad FIT image), the other slot is booted
+in the same boot. The kernel command line comes from U-Boot and names
+the slot (d200.slot=), and the root filesystem is mounted read-only.
+
+An update sets upgrade_available=1, which makes every boot count
+(BOOTCOUNT_ENV). After bootlimit (3) failed boots altbootcmd switches
+back to the other slot and records ota_result=rolled-back.
+
+The saved env may only set slot, upgrade_available, bootcount and
+ota_result (ENV_WRITEABLE_LIST), so the boot logic always comes from the
+running U-Boot.
+
+The default env moves to a text file, and fastboot writes idbloader at
+fixed offsets.
+---
+ board/ulanzi/d200/ulanzi-d200.env    | 35 ++++++++++++++++++++++++++++
+ configs/ulanzi-d200-rk3308_defconfig | 11 ++++++++-
+ 2 files changed, 45 insertions(+), 1 deletion(-)
+ create mode 100644 board/ulanzi/d200/ulanzi-d200.env
+
+diff --git a/board/ulanzi/d200/ulanzi-d200.env b/board/ulanzi/d200/ulanzi-d200.env
+new file mode 100644
+index 00000000..a960e114
+--- /dev/null
++++ b/board/ulanzi/d200/ulanzi-d200.env
+@@ -0,0 +1,35 @@
++/*
++ * A/B boot from the "ubi" partition: slot a is the volumes kernel_a and
++ * rootfs_a, slot b kernel_b and rootfs_b. "slot" picks the slot; if it
++ * doesn't boot (empty or damaged volume, bad FIT image), the other slot is
++ * booted in the same boot.
++ *
++ * An update writes the inactive slot, then sets slot, upgrade_available=1
++ * and bootcount=0. While upgrade_available is 1 every boot counts
++ * (BOOTCOUNT_ENV saves the env); after bootlimit (BOOTCOUNT_BOOTLIMIT)
++ * failed boots altbootcmd runs d200_altboot, which switches back. Linux
++ * sets upgrade_available=0 once the new slot is good.
++ *
++ * Only slot, upgrade_available, bootcount and ota_result are taken from
++ * the saved env (ENV_WRITEABLE_LIST); everything else always comes from
++ * here.
++ */
++slot=a
++upgrade_available=0
++d200_args=console=ttyS2,1500000n8 earlycon ubi.mtd=ubi rootfstype=ubifs ro panic=10
++boot_a=
++	ubi read ${kernel_addr_r} kernel_a &&
++	setenv bootargs ${d200_args} root=ubi0:rootfs_a d200.slot=a &&
++	bootm ${kernel_addr_r}
++boot_b=
++	ubi read ${kernel_addr_r} kernel_b &&
++	setenv bootargs ${d200_args} root=ubi0:rootfs_b d200.slot=b &&
++	bootm ${kernel_addr_r}
++d200_boot=
++	ubi part ubi;
++	if test "${slot}" = b; then run boot_b; run boot_a;
++	else run boot_a; run boot_b; fi
++d200_altboot=
++	if test "${slot}" = b; then setenv slot a; else setenv slot b; fi;
++	setenv upgrade_available 0; setenv bootcount 0;
++	setenv ota_result rolled-back; saveenv; run bootcmd
+diff --git a/configs/ulanzi-d200-rk3308_defconfig b/configs/ulanzi-d200-rk3308_defconfig
+index 8c2593f6..1c7c4eef 100644
+--- a/configs/ulanzi-d200-rk3308_defconfig
++++ b/configs/ulanzi-d200-rk3308_defconfig
+@@ -14,7 +14,7 @@ CONFIG_DEBUG_UART=y
+ CONFIG_ANDROID_BOOT_IMAGE=y
+ CONFIG_FIT=y
+ CONFIG_FIT_VERBOSE=y
+-CONFIG_BOOTCOMMAND="ubi part ubi && ubi read ${kernel_addr_r} kernel && bootm ${kernel_addr_r}"
++CONFIG_BOOTCOMMAND="run d200_boot"
+ # CONFIG_BOOTSTD_BOOTCOMMAND is not set
+ CONFIG_USE_PREBOOT=y
+ CONFIG_DEFAULT_FDT_FILE="rockchip/rk3308-ulanzi-d200.dtb"
+@@ -118,7 +118,16 @@ CONFIG_FASTBOOT_FLASH=y
+ CONFIG_FASTBOOT_FLASH_MTD=y
+ CONFIG_FASTBOOT_FLASH_MTD_UBI=y
+ CONFIG_FASTBOOT_FLASH_MTD_UBI_PART="ubi"
++CONFIG_FASTBOOT_FLASH_MTD_FIXED_PARTS="idbloader"
+ CONFIG_FASTBOOT_OEM_RUN=y
+ CONFIG_CONSOLE_RECORD=y
+ CONFIG_FASTBOOT_CMD_OEM_CONSOLE=y
+ CONFIG_SPL_BOARD_INIT=y
++# A/B boot, see board/ulanzi/d200/ulanzi-d200.env
++CONFIG_ENV_SOURCE_FILE="ulanzi-d200"
++CONFIG_BOOTCOUNT_LIMIT=y
++CONFIG_BOOTCOUNT_ENV=y
++CONFIG_BOOTCOUNT_BOOTLIMIT=3
++CONFIG_BOOTCOUNT_ALTBOOTCMD="run d200_altboot"
++CONFIG_ENV_WRITEABLE_LIST=y
++CONFIG_ENV_FLAGS_LIST_STATIC="slot:sw,upgrade_available:dw,bootcount:dw,ota_result:sw"

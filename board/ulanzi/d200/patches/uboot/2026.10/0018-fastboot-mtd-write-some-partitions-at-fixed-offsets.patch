@@ -1,0 +1,142 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Mon, 19 Oct 2026 13:54:34 -0500
+Subject: [PATCH] fastboot: mtd: write some partitions at fixed offsets
+
+Boot ROM images such as the Rockchip IDB sit at fixed offsets in their
+partition, often as several copies. Skipping a bad block would shift
+every copy behind it, so the boot ROM would no longer find them.
+
+Add FASTBOOT_FLASH_MTD_FIXED_PARTS, a list of such partitions. They are
+written block for block: a bad block in the way fails the write instead
+of being skipped. Blocks are written from the last to the first, so the
+first block of each copy, which the boot ROM checks, is written after
+the rest of that copy.
+---
+ drivers/fastboot/Kconfig  | 12 +++++++
+ drivers/fastboot/fb_mtd.c | 75 ++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 86 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/fastboot/Kconfig b/drivers/fastboot/Kconfig
+index 7ab07b64..28ece4c4 100644
+--- a/drivers/fastboot/Kconfig
++++ b/drivers/fastboot/Kconfig
+@@ -139,6 +139,18 @@ config FASTBOOT_FLASH_MTD
+ 
+ endchoice
+ 
++config FASTBOOT_FLASH_MTD_FIXED_PARTS
++	string "MTD partitions written at fixed offsets"
++	depends on FASTBOOT_FLASH_MTD
++	default ""
++	help
++	  Space-separated names of MTD partitions whose contents must stay
++	  where they are in the image, such as boot ROM images with several
++	  copies. Bad blocks in them are not skipped (flashing fails
++	  instead), and blocks are written from the last to the first, so
++	  the first block of each copy, which the boot ROM checks, is
++	  written after the rest of the copy.
++
+ config FASTBOOT_FLASH_MTD_UBI
+ 	bool "Also flash and erase UBI volumes"
+ 	depends on FASTBOOT_FLASH_MTD && CMD_UBI
+diff --git a/drivers/fastboot/fb_mtd.c b/drivers/fastboot/fb_mtd.c
+index 67f1518d..fb883d61 100644
+--- a/drivers/fastboot/fb_mtd.c
++++ b/drivers/fastboot/fb_mtd.c
+@@ -5,7 +5,8 @@
+  * The partition name given to "fastboot flash" / "fastboot erase" is first
+  * looked up as an MTD partition (e.g. from the device tree "partitions"
+  * node). Bad blocks are skipped and all-0xff pages are not written, as UBI
+- * images expect.
++ * images expect. Partitions in FASTBOOT_FLASH_MTD_FIXED_PARTS keep the
++ * image at its offsets instead (see Kconfig).
+  *
+  * With FASTBOOT_FLASH_MTD_UBI, any other name is a UBI volume: either
+  * "<mtd-partition>:<volume>", or just "<volume>" on the attached UBI device
+@@ -146,6 +147,75 @@ static int fb_mtd_erase_all(struct mtd_info *mtd)
+ 	return 0;
+ }
+ 
++/* True if @name is listed in FASTBOOT_FLASH_MTD_FIXED_PARTS */
++static bool fb_mtd_is_fixed(const char *name)
++{
++	const char *p = CONFIG_FASTBOOT_FLASH_MTD_FIXED_PARTS;
++	size_t len = strlen(name);
++
++	while (*p) {
++		while (*p == ' ')
++			p++;
++		if (!strncmp(p, name, len) && (p[len] == ' ' || !p[len]))
++			return true;
++		while (*p && *p != ' ')
++			p++;
++	}
++
++	return false;
++}
++
++/* Write the non-empty pages of one block */
++static int fb_mtd_write_block(struct mtd_info *mtd, u64 off, u8 *buf,
++			      u32 len, char *response)
++{
++	size_t retlen;
++	u32 done;
++	int ret;
++
++	for (done = 0; done < len; done += mtd->writesize) {
++		if (fb_mtd_is_empty(buf + done, mtd->writesize))
++			continue;
++		ret = mtd_write(mtd, off + done, mtd->writesize, &retlen,
++				buf + done);
++		if (ret || retlen != mtd->writesize) {
++			printf("Write failed at 0x%08llx: %d\n", off + done, ret);
++			fastboot_fail("failed to write partition", response);
++			return ret ? ret : -EIO;
++		}
++	}
++
++	return 0;
++}
++
++/*
++ * Fixed partitions: block N of the image goes to block N of the partition,
++ * last block first. A bad block in the way fails the write.
++ */
++static int fb_mtd_write_fixed(struct mtd_info *mtd, u8 *buf, u32 len,
++			      char *response)
++{
++	u32 blocks = DIV_ROUND_UP(len, mtd->erasesize);
++	u64 off;
++	int ret;
++
++	while (blocks--) {
++		off = (u64)blocks * mtd->erasesize;
++		if (mtd_block_isbad(mtd, off)) {
++			printf("Bad block at 0x%08llx\n", off);
++			fastboot_fail("bad block in fixed partition", response);
++			return -EIO;
++		}
++		ret = fb_mtd_write_block(mtd, off, buf + off,
++					 min_t(u32, len - off, mtd->erasesize),
++					 response);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
+ static int fb_mtd_write(struct mtd_info *mtd, u8 *buf, u32 size,
+ 			char *response)
+ {
+@@ -174,6 +244,9 @@ static int fb_mtd_write(struct mtd_info *mtd, u8 *buf, u32 size,
+ 	}
+ 
+ 	printf("Writing 0x%x bytes to %s\n", size, mtd->name);
++	if (fb_mtd_is_fixed(mtd->name))
++		return fb_mtd_write_fixed(mtd, buf, len, response);
++
+ 	while (len) {
+ 		if (off >= mtd->size) {
+ 			fastboot_fail("not enough good blocks for image",

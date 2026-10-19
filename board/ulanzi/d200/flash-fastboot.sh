@@ -9,10 +9,12 @@
 #     image-dir       holds the images (default: the script's directory, or
 #                     its build/ subdirectory)
 #     (no option)     full install: U-Boot + the whole UBI partition from
-#                     ubi.img. The U-Boot environment and any splash are reset.
+#                     ubi.img (slot A filled, slot B empty). The U-Boot
+#                     environment, /data and any splash are reset.
 #     --uboot         update only U-Boot (idbloader.img, u-boot.itb)
-#     --linux         update only Linux: kernel.itb and rootfs.ubifs into their
-#                     UBI volumes, keeping the environment and the splash
+#     --linux         update only Linux: kernel.itb and rootfs.ubifs into slot A
+#                     (kernel_a, rootfs_a), and boot slot A; /data and the
+#                     splash are kept
 #     --splash <bmp>  also put a boot splash in the "splash" UBI volume
 #     --no-reboot     stay in fastboot when done
 #
@@ -20,8 +22,8 @@
 # 768 KiB, so the "idbloader" partition gets an image with 4 copies.
 set -e
 # UBI volume sizes for --linux, when the volumes don't exist yet (as in ubinize.cfg)
-KERNEL_VOL_SIZE=0x1000000
-ROOTFS_VOL_SIZE=0xa000000
+KERNEL_VOL_SIZE=0x800000
+ROOTFS_VOL_SIZE=0x2000000
 
 MODE=full; SPLASH=; REBOOT=1; DIR=
 while [ $# -gt 0 ]; do
@@ -101,10 +103,11 @@ full)
 	fb flash ubi "$DIR/ubi.img"
 	;;
 linux)
-	ensure_vol kernel "$KERNEL_VOL_SIZE" dynamic
-	ensure_vol rootfs "$ROOTFS_VOL_SIZE" dynamic
-	fb flash kernel "$DIR/kernel.itb"
-	fb flash rootfs "$DIR/rootfs.ubifs"
+	ensure_vol kernel_a "$KERNEL_VOL_SIZE" static
+	ensure_vol rootfs_a "$ROOTFS_VOL_SIZE" dynamic
+	fb flash kernel_a "$DIR/kernel.itb"
+	fb flash rootfs_a "$DIR/rootfs.ubifs"
+	fb oem "run:setenv slot a; setenv upgrade_available 0; setenv bootcount 0; saveenv"
 	;;
 esac
 
@@ -112,7 +115,7 @@ if [ -n "$SPLASH" ]; then
 	# recreate the volume at the image size, so any size fits
 	fb oem run:ubi part ubi
 	[ -n "$(part_size splash)" ] && fb oem run:ubi remove splash
-	fb oem run:ubi create splash "$(printf 0x%x "$(stat -c%s "$SPLASH")")" static
+	fb oem run:ubi create splash "$(printf 0x%x "$(stat -c%s "$SPLASH")")" static 7
 	fb flash splash "$SPLASH"
 fi
 

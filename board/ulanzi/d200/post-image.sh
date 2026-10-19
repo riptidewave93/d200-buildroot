@@ -4,9 +4,9 @@
 #                   0x0/0x40000/0x80000/0xc0000 (idb-layout.py)
 #   u-boot.itb      U-Boot FIT, written to "u-boot" (0x100000) and "u-boot-backup" (0x500000)
 #   d200-usb-loader.bin   for `rkdeveloptool boot` from maskrom (runs U-Boot from RAM)
-#   kernel.itb      kernel FIT image (Image.gz + DTB) for the "kernel" UBI volume
-#   rootfs.ubifs    root filesystem for the "rootfs" UBI volume (built by Buildroot)
-#   ubi.img         the whole "ubi" partition: kernel + rootfs volumes (ubinize.cfg)
+#   kernel.itb      kernel FIT image (Image.gz + DTB) for a "kernel_a/b" UBI volume
+#   rootfs.ubifs    root filesystem for a "rootfs_a/b" UBI volume (built by Buildroot)
+#   ubi.img         the whole "ubi" partition, slot A filled (ubinize.cfg)
 #   flash-fastboot.sh     flashes all of the above over USB fastboot
 #   d200-full.img   idbloader x4 + u-boot + u-boot-backup + ubi, for
 #                   rkdeveloptool with rk3308_loader_wo_ftl.bin (from d200-rkbin)

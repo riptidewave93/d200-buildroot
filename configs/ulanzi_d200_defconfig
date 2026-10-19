@@ -35,6 +35,8 @@ BR2_TARGET_UBOOT_NEEDS_GNUTLS=y
 BR2_TARGET_UBOOT_CUSTOM_MAKEOPTS="BL31=$(BINARIES_DIR)/rkbin-bl31.elf ROCKCHIP_TPL=$(BINARIES_DIR)/rkbin-tpl.bin"
 BR2_TARGET_UBOOT_FORMAT_CUSTOM=y
 BR2_TARGET_UBOOT_FORMAT_CUSTOM_NAME="idbloader.img u-boot.itb u-boot-rockchip-usb471.bin u-boot-rockchip-usb472.bin"
+# Default env for fw_printenv/fw_setenv (libubootenv)
+BR2_TARGET_UBOOT_INITIAL_ENV=y
 
 # Kernel: mainline v7.2.11 + board/ulanzi/d200/patches/linux/7.2.11/*.patch, minimal config
 BR2_LINUX_KERNEL=y
@@ -59,6 +61,8 @@ BR2_TARGET_GENERIC_HOSTNAME="d200"
 BR2_TARGET_GENERIC_ISSUE="Ulanzi D200"
 # BR2_TARGET_GENERIC_GETTY is not set
 # BR2_PACKAGE_IFUPDOWN_SCRIPTS is not set
+# fw_printenv/fw_setenv: the updater switches slots through the U-Boot env
+BR2_PACKAGE_LIBUBOOTENV=y
 BR2_PACKAGE_BUSYBOX_WATCHDOG=y
 # USB Ethernet: d200-<serial>.local, and IPv6 addresses for the PC (radvd is
 # started by S30usb-gadget)
@@ -72,7 +76,7 @@ BR2_PACKAGE_D200_DECK=y
 # BusyBox additions (udhcpd for the USB Ethernet gadget)
 BR2_PACKAGE_BUSYBOX_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_D200_BUILDROOT_PATH)/board/ulanzi/d200/busybox.fragment"
 
-# Rootfs: UBIFS for the "rootfs" UBI volume (2 KiB pages, 128 KiB blocks -> 124 KiB LEBs)
+# Rootfs: UBIFS for the "rootfs_a"/"rootfs_b" UBI volumes (2 KiB pages, 128 KiB blocks -> 124 KiB LEBs)
 # BR2_TARGET_ROOTFS_TAR is not set
 BR2_TARGET_ROOTFS_UBIFS=y
 BR2_TARGET_ROOTFS_UBIFS_LEBSIZE=0x1f000
