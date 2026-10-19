@@ -22,6 +22,13 @@ rm -f "$TARGET_DIR/etc/init.d/S50radvd"
 # mdnsd installs ssh.service whatever its options say: advertise SSH only
 # with an SSH server (debug builds)
 [ -e "$TARGET_DIR/usr/sbin/dropbear" ] || rm -f "$TARGET_DIR/etc/mdns.d/ssh.service"
+# The toolchain always installs libstdc++ (2.4 MB), libgomp and libatomic:
+# drop each unless something in the image links it
+NEEDED=$(find "$TARGET_DIR" -type f -exec "$HOST_DIR/bin/aarch64-linux-readelf" -d {} + 2>/dev/null |
+	grep 'NEEDED')
+for lib in libstdc++ libgomp libatomic; do
+	echo "$NEEDED" | grep -qF "[$lib.so" || rm -f "$TARGET_DIR/usr/lib/$lib.so"*
+done
 
 # The read-only USB drive image (mass storage gadget) from usb-drive/: the
 # README gets the version, and its debug section only in debug builds
