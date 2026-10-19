@@ -4,11 +4,36 @@
 # formats it on the first mount; if it won't mount, it is emptied and formatted
 # again. /data/update holds an incoming update and is emptied at every boot.
 #
+# The clock: there is no RTC. It starts from /data/clock (Unix seconds, saved
+# by deckd and at shutdown) or the build time, whichever is later; deckd sets
+# it from the PC.
+#
 
 DEV=ubi0:data
 VOL=/dev/ubi0_6
 # LZO, the compressor every kernel here has, so an older slot can mount it
 OPTS=compr=lzo
+CLOCK=/data/clock
+
+# BUILD_ID (YYYYMMDDHHMM, UTC) as Unix seconds
+build_time() {
+	. /usr/lib/os-release
+	date -u -d "$(echo "$BUILD_ID" |
+		sed 's/^\(....\)\(..\)\(..\)\(..\)\(..\)$/\1-\2-\3 \4:\5/')" +%s 2>/dev/null
+}
+
+restore_clock() {
+	t=$(build_time)
+	saved=$(cat $CLOCK 2>/dev/null)
+	case "$saved" in ''|*[!0-9]*) ;; *) [ "$saved" -gt "${t:-0}" ] && t=$saved ;; esac
+	[ -n "$t" ] && [ "$t" -gt "$(date +%s)" ] && date -u -s "@$t" >/dev/null
+}
+
+save_clock() {
+	now=$(date +%s)
+	[ "$now" -ge "$(build_time || echo 0)" ] || return
+	echo "$now" > $CLOCK.new && mv $CLOCK.new $CLOCK
+}
 
 case "$1" in
 	start)
@@ -19,12 +44,16 @@ case "$1" in
 			ubiupdatevol -t "$VOL" && mount -t ubifs -o $OPTS "$DEV" /data ||
 				{ echo "FAIL"; exit 1; }
 		fi
+		restore_clock
 		rm -rf /data/update
 		mkdir -p /data/update
 		# debug builds: the SSH host key (/etc/dropbear links here)
 		[ -x /usr/sbin/dropbear ] && mkdir -p /data/dropbear
 		echo "OK";;
-	stop|restart|reload)
+	stop)
+		mountpoint -q /data && save_clock
+		;;
+	restart|reload)
 		;;
 	*)
 		echo "Usage: $0 {start|stop|restart|reload}"

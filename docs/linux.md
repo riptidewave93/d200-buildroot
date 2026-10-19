@@ -59,14 +59,20 @@ builds have neither. Services:
 Files added to Buildroot's default skeleton live in `board/ulanzi/d200/rootfs-overlay/`.
 
 The root filesystem is read-only. Everything kept across boots lives in `/data` (UBIFS, 100 MiB): the key app's
-config, the USB drive setting (`/data/usb-gadget.conf`), the random seed (`/data/seedrng`), the SSH host key (debug
-builds, `/etc/dropbear` links to `/data/dropbear`), and an incoming update (`/data/update`). The U-Boot env (slot and
-update state) is read and written with `fw_printenv` / `fw_setenv`.
+config, the USB settings (`/data/usb-gadget.conf`), the saved clock (`/data/clock`), the random seed
+(`/data/seedrng`), the SSH host key (debug builds, `/etc/dropbear` links to `/data/dropbear`), and an incoming update
+(`/data/update`). The U-Boot env (slot and update state) is read and written with `fw_printenv` / `fw_setenv`.
+
+**Clock:** there is no RTC. At boot, `S00data` sets the clock to the saved time or the build time (`BUILD_ID`),
+whichever is later, so it never starts in 1970. `deckd` sets it from the PC when the PC app connects, and saves it
+to `/data/clock` (Unix seconds) then and every 6 hours; a clean shutdown saves it too. After a power cut the clock
+is behind until the PC app connects.
 
 **Flash writes** are kept rare to spare the SPI NAND. Logs, leases and PID files live in RAM (`/tmp`, `/run`), and
 UBIFS doesn't update access times (`UBIFS_ATIME_SUPPORT` is off), so reading files writes nothing. What does write:
 the random seed (at boot and shutdown), UBI's fastmap (once per boot), the SSH host key (debug builds, once),
-config changes, and updates. UBI spreads erases over all blocks and handles bad blocks.
+the clock (a few times a day), config changes, and updates. UBI spreads erases over all blocks and handles bad
+blocks.
 
 `reboot-to [normal|fastboot|maskrom]` (`package/d200-utils`) reboots into a boot mode: `fastboot` makes U-Boot start
 fastboot, `maskrom` makes the BootROM enter USB download mode, `normal` (the default) just reboots.
