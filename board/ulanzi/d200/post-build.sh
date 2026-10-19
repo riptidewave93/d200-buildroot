@@ -6,6 +6,8 @@ FLAVOR="${2:-release}"
 
 # OS version: the d200-buildroot git tag/commit this image was built from
 VERSION=$(git -C "$BR2_EXTERNAL_D200_BUILDROOT_PATH" describe --tags --always --dirty 2>/dev/null || echo dev)
+# a package built from a local source tree (local.mk) isn't what the commit pins
+grep -qs '_OVERRIDE_SRCDIR' "$CONFIG_DIR/local.mk" && VERSION="$VERSION-local"
 cat > "$TARGET_DIR/usr/lib/os-release" <<EOT
 NAME="D200"
 ID=d200
