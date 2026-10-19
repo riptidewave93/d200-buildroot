@@ -47,7 +47,8 @@ all:
 | File | What |
 |---|---|
 | `flash-fastboot.sh` | Flashes the images below over fastboot ([flashing.md](docs/flashing.md)) |
-| `idbloader.img` | TPL (rkbin DDR init) + U-Boot SPL, one 256 KiB copy for the `idbloader` partition |
+| `idbloader.img` | TPL (rkbin DDR init) + U-Boot SPL: one 256 KiB copy (the update bundle carries this) |
+| `idbloader-x4.img` | The `idbloader` partition: 4 copies of `idbloader.img`, one every 256 KiB |
 | `u-boot.itb` | U-Boot FIT (BL31 + U-Boot + DTB), for `u-boot` and `u-boot-backup` |
 | `kernel.itb` | Kernel FIT (Image.gz + DTB), for the `kernel_a` / `kernel_b` UBI volumes |
 | `rootfs.ubifs` | Root filesystem, for the `rootfs_a` / `rootfs_b` UBI volumes |

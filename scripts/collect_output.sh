@@ -13,7 +13,7 @@ keep=${KEEP:-3}
 # a second build in the same minute replaces the first
 rm -rf "${out}"
 mkdir -p "${out}"
-files="idbloader.img u-boot.itb kernel.itb rootfs.ubifs ubi.img d200-usb-loader.bin flash-fastboot.sh
+files="idbloader.img idbloader-x4.img u-boot.itb kernel.itb rootfs.ubifs ubi.img d200-usb-loader.bin flash-fastboot.sh
        u-boot-rockchip-usb471.bin u-boot-rockchip-usb472.bin d200-full.img rk3308_loader_wo_ftl.bin"
 for f in ${files}; do
     cp "${images}/${f}" "${out}/"

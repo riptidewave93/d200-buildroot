@@ -14,5 +14,4 @@
 | Windows | USB Ethernet binding, keys and the config channel |
 | Fastboot entry glitch | Seen once: after `reboot-to fastboot` the D200 enumerated at full speed and failed (`-71`) until replugged. Watch for it |
 | Release workflow | Untested: `.github/workflows/release.yml` builds, signs with the `D200_SIGNING_KEY` secret and drafts a release on a `v*` tag. Its first run needs a push and a tag |
-| `d200-full.img` and the new IDB layout | Untested: `rkdeveloptool wl` writes the IDB header page with ECC (the BootROM ignores ECC, so it should boot) |
 | `d200-full.img` and bad blocks | How rkbin's raw NAND loader handles bad blocks is untested (the test board has none) |

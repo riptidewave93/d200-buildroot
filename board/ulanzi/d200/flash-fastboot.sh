@@ -11,15 +11,13 @@
 #     (no option)     full install: U-Boot + the whole UBI partition from
 #                     ubi.img (slot A filled, slot B empty). The U-Boot
 #                     environment, /data and any splash are reset.
-#     --uboot         update only U-Boot (idbloader.img, u-boot.itb)
+#     --uboot         update only U-Boot (idbloader-x4.img, u-boot.itb)
 #     --linux         update only Linux: kernel.itb and rootfs.ubifs into slot A
 #                     (kernel_a, rootfs_a), and boot slot A; /data and the
 #                     splash are kept
 #     --splash <bmp>  also put a boot splash in the "splash" UBI volume
 #     --no-reboot     stay in fastboot when done
 #
-# The BootROM reads up to 4 copies of idbloader.img at 0, 256, 512 and
-# 768 KiB, so the "idbloader" partition gets an image with 4 copies.
 set -e
 # UBI volume sizes for --linux, when the volumes don't exist yet (as in ubinize.cfg)
 KERNEL_VOL_SIZE=0x800000
@@ -43,8 +41,8 @@ if [ -z "$DIR" ]; then
 fi
 
 case $MODE in
-full)	FILES="idbloader.img u-boot.itb ubi.img" ;;
-uboot)	FILES="idbloader.img u-boot.itb" ;;
+full)	FILES="idbloader-x4.img u-boot.itb ubi.img" ;;
+uboot)	FILES="idbloader-x4.img u-boot.itb" ;;
 linux)	FILES="kernel.itb rootfs.ubifs" ;;
 esac
 for f in $FILES; do
@@ -86,16 +84,9 @@ for f in $FILES; do
 done
 
 if [ $MODE != linux ]; then
-	[ "$(stat -c%s "$DIR/idbloader.img")" -le 262144 ] ||
-		{ echo "idbloader.img larger than 256 KiB" >&2; exit 1; }
-	TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-	head -c 1M /dev/zero | tr '\0' '\377' > "$TMP/idb4.img"	# erased flash is 0xff
-	for i in 0 1 2 3; do
-		dd if="$DIR/idbloader.img" of="$TMP/idb4.img" bs=256K seek=$i conv=notrunc status=none
-	done
 	fb flash u-boot "$DIR/u-boot.itb"
 	fb flash u-boot-backup "$DIR/u-boot.itb"
-	fb flash idbloader "$TMP/idb4.img"
+	fb flash idbloader "$DIR/idbloader-x4.img"
 fi
 
 case $MODE in

@@ -1,14 +1,15 @@
 #!/bin/sh
 # Collect the D200 boot images and build a USB loader for rkdeveloptool.
-#   idbloader.img   one 256 KiB IDB copy (TPL+SPL), written 4x to SPI NAND
-#                   0x0/0x40000/0x80000/0xc0000 (idb-layout.py)
+#   idbloader.img   one 256 KiB IDB copy (TPL+SPL) (idb-layout.py)
+#   idbloader-x4.img  the "idbloader" partition: 4 copies, at 0x0/0x40000/
+#                   0x80000/0xc0000 (the BootROM tries each)
 #   u-boot.itb      U-Boot FIT, written to "u-boot" (0x100000) and "u-boot-backup" (0x500000)
 #   d200-usb-loader.bin   for `rkdeveloptool boot` from maskrom (runs U-Boot from RAM)
 #   kernel.itb      kernel FIT image (Image.gz + DTB) for a "kernel_a/b" UBI volume
 #   rootfs.ubifs    root filesystem for a "rootfs_a/b" UBI volume (built by Buildroot)
 #   ubi.img         the whole "ubi" partition, slot A filled (ubinize.cfg)
 #   flash-fastboot.sh     flashes all of the above over USB fastboot
-#   d200-full.img   idbloader x4 + u-boot + u-boot-backup + ubi, for
+#   d200-full.img   idbloader-x4 + u-boot + u-boot-backup + ubi, for
 #                   rkdeveloptool with rk3308_loader_wo_ftl.bin (from d200-rkbin)
 #   update.tar      the update bundle (docs/ota.md)
 # $2: flavour (release or debug, from BR2_ROOTFS_POST_SCRIPT_ARGS)
@@ -19,6 +20,11 @@ FLAVOR="${2:-release}"
 # (idempotent, so a rebuild without U-Boot can run this again)
 python3 "$(dirname "$0")/idb-layout.py" "$BINARIES_DIR/idbloader.img" "$BINARIES_DIR/idbloader.img.new"
 mv "$BINARIES_DIR/idbloader.img.new" "$BINARIES_DIR/idbloader.img"
+X4="$BINARIES_DIR/idbloader-x4.img"
+head -c 1M /dev/zero | tr '\0' '\377' > "$X4"	# erased flash is 0xff
+for i in 0 1 2 3; do
+	dd if="$BINARIES_DIR/idbloader.img" of="$X4" bs=256K seek=$i conv=notrunc status=none
+done
 
 INI="$BINARIES_DIR/d200-usb-loader.ini"
 cat > "$INI" <<INI
@@ -60,9 +66,7 @@ if [ -f "$BINARIES_DIR/Image.gz" ]; then
 	# The start of the NAND as flashed: erased (0xff) padding up to the ubi partition
 	FULL="$BINARIES_DIR/d200-full.img"
 	head -c 9M /dev/zero | tr '\0' '\377' > "$FULL"
-	for i in 0 1 2 3; do
-		dd if="$BINARIES_DIR/idbloader.img" of="$FULL" bs=256K seek=$i conv=notrunc status=none
-	done
+	dd if="$X4" of="$FULL" conv=notrunc status=none
 	dd if="$BINARIES_DIR/u-boot.itb" of="$FULL" bs=1M seek=1 conv=notrunc status=none
 	dd if="$BINARIES_DIR/u-boot.itb" of="$FULL" bs=1M seek=5 conv=notrunc status=none
 	cat "$BINARIES_DIR/ubi.img" >> "$FULL"
