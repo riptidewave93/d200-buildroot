@@ -35,14 +35,20 @@ for lib in libstdc++ libgomp libatomic; do
 done
 
 # The read-only USB drive image (mass storage gadget) from usb-drive/: the
-# README gets the version, and its debug section only in debug builds
-IMG="$TARGET_DIR/usr/share/d200/usb-drive.img"
+# README gets the version, and its debug section only in debug builds.
+# S30usb-gadget fills in the D200's name and addresses at boot, from
+# usb-drive-readme.md into the README's bytes at usb-drive-readme.at
+SHARE="$TARGET_DIR/usr/share/d200"
+IMG="$SHARE/usb-drive.img"
 DRIVE=$(mktemp -d)
 cp -r "$BOARD_DIR"/usb-drive/. "$DRIVE"/
 sed -i -e "s/@VERSION@/$VERSION/" -e "s/@FLAVOR@/$FLAVOR/" "$DRIVE/README.md"
 [ "$FLAVOR" = debug ] || sed -i '/^## Debug build/,$d' "$DRIVE/README.md"
-mkdir -p "$(dirname "$IMG")"
+mkdir -p "$SHARE"
+mv "$DRIVE/README.md" "$SHARE/usb-drive-readme.md"
+python3 "$BOARD_DIR/usb-drive-readme.py" pad "$SHARE/usb-drive-readme.md" "$DRIVE/README.md"
 rm -f "$IMG"
 "$HOST_DIR/sbin/mkfs.vfat" -C -n "D200 DECK" "$IMG" 1024 >/dev/null
 "$HOST_DIR/bin/mcopy" -i "$IMG" "$DRIVE"/* ::/
+python3 "$BOARD_DIR/usb-drive-readme.py" locate "$IMG" "$DRIVE/README.md" > "$SHARE/usb-drive-readme.at"
 rm -rf "$DRIVE"

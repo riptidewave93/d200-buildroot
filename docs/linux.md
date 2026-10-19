@@ -81,7 +81,7 @@ Functions are set in `/etc/default/usb-gadget`:
 | `hid` | Keyboard, media keys, system control, mouse | `/dev/hidg0`. `deckd` provides the report descriptor and sends the reports; without it the function is skipped |
 | `raw` | A vendor HID device (usage page `0xFFD2`): the config channel for the website (WebHID) and the PC app | `/dev/hidg1`, served by `deckd` |
 | `ncm` | USB Ethernet (built-in driver on Linux, macOS, Windows 10/11) | `usb0`, addresses below |
-| `msc` | Read-only USB drive "D200 DECK" with a README | `/usr/share/d200/usb-drive.img`, built from `board/ulanzi/d200/usb-drive/` |
+| `msc` | Read-only USB drive "D200 DECK" with a README, including the D200's name and addresses | `/tmp/usb-drive.img`: a RAM copy of `/usr/share/d200/usb-drive.img` (built from `board/ulanzi/d200/usb-drive/`) with the README filled in at boot and when the addresses change |
 
 The order is the interface order, and it is fixed: always-on functions first, the drive last, so turning the drive off
 renumbers nothing. `bcdDevice` is the USB layout version.

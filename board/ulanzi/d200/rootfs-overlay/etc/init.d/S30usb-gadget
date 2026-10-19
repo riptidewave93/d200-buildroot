@@ -24,7 +24,8 @@ UDHCPD_CONF=/tmp/udhcpd-usb.conf
 UDHCPD_PID=/var/run/udhcpd-usb.pid
 RADVD_CONF=/tmp/radvd-usb.conf
 RADVD_PID=/var/run/radvd-usb.pid
-USB_DRIVE=/usr/share/d200/usb-drive.img
+USB_DRIVE=/tmp/usb-drive.img
+SHARE=/usr/share/d200
 SETTINGS=/data/usb-gadget.conf
 
 # CPU serial, passed on by U-Boot
@@ -99,6 +100,7 @@ add_function() {
 		echo 1 > $f/lun.0/ro
 		# vendor (8 chars), product (16), revision (4)
 		echo "Ulanzi  D200 Deck       0100" > $f/lun.0/inquiry_string
+		make_drive
 		echo $USB_DRIVE > $f/lun.0/file
 		;;
 	*)
@@ -171,11 +173,23 @@ start_udhcpd() {
 	start-stop-daemon -S -q -b -m -p $UDHCPD_PID -x /usr/sbin/udhcpd -- -f -S $UDHCPD_CONF
 }
 
+# The drive: a RAM copy of the image, its README filled in with the name and
+# addresses, rewritten in place (offset and size from the build)
+make_drive() {
+	cp $SHARE/usb-drive.img $USB_DRIVE
+	read off size < $SHARE/usb-drive-readme.at || return 0
+	sed -e "s|@NAME@|$(hostname).local|g" -e "s|@IPV4@|$DEV_IP4|g" \
+		-e "s|@PEER4@|$PEER_IP4|g" -e "s|@IPV6@|${DEV_IP6:-none}|g" \
+		$SHARE/usb-drive-readme.md > /tmp/readme
+	if [ "$(wc -c < /tmp/readme)" -le "$size" ]; then
+		{ cat /tmp/readme; tr '\0' ' ' < /dev/zero; } | head -c "$size" |
+			dd of=$USB_DRIVE bs=1 seek="$off" conv=notrunc 2>/dev/null
+	fi
+	rm -f /tmp/readme
+}
+
 start_network() {
 	ifname=$(cat $G/functions/ncm.usb0/ifname)
-	addresses
-	# the mDNS name, d200-<serial>.local
-	[ -r /proc/device-tree/serial-number ] && hostname "d200-$(serial | tr A-F a-f)"
 	ip addr add $DEV_IP4/30 brd + dev "$ifname"
 	[ -n "$DEV_IP6" ] && ip -6 addr add $DEV_IP6/64 dev "$ifname"
 	ip link set "$ifname" up
@@ -227,6 +241,9 @@ start() {
 	echo MSFT100 > os_desc/qw_sign
 	ln -s configs/c.1 os_desc/
 
+	addresses
+	# the mDNS name, d200-<serial>.local
+	[ -r /proc/device-tree/serial-number ] && hostname "d200-$(serial | tr A-F a-f)"
 	for f in $USB_FUNCTIONS; do
 		[ "$f" = msc ] && ! drive_wanted && continue
 		add_function "$f"
@@ -249,9 +266,9 @@ apply() {
 		[ $have = $want ] || drive=1
 	esac
 	net=0
+	addresses
 	if [ -d functions/ncm.usb0 ]; then
 		ifname=$(cat functions/ncm.usb0/ifname)
-		addresses
 		cur=$(ip -4 addr show dev "$ifname" | sed -n 's/.* inet \([0-9.]*\)\/.*/\1/p')
 		[ "$cur" = "$DEV_IP4" ] || net=1
 	fi
@@ -271,6 +288,7 @@ apply() {
 		ip -4 addr flush dev "$ifname"
 		ip addr add $DEV_IP4/30 brd + dev "$ifname" || ret=1
 		start_udhcpd "$ifname" || ret=1
+		[ -e configs/c.1/mass_storage.usb0 ] && make_drive
 	fi
 	ls /sys/class/udc | head -n 1 > UDC || return 1
 	return $ret

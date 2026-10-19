@@ -1,22 +1,35 @@
 # Ulanzi D200
 
-This D200 runs open-source firmware: mainline Linux and the d200-deck key app.
-This drive is read-only.
+This D200 runs open-source firmware: mainline Linux and d200-deck.
+Firmware @VERSION@ (@FLAVOR@ build). This drive is read-only.
 
-| | |
-|---|---|
-| Firmware | @VERSION@ (@FLAVOR@ build) |
-| Configure your keys | https://riptidewave93.github.io/d200-configure/ (coming soon) |
-| OS / firmware image | https://github.com/riptidewave93/d200-buildroot |
-| Key app (d200-deck) | https://github.com/riptidewave93/d200-deck |
+## Get started
+
+- For the best experience and integration, we recommend installing our
+  companion app (Windows/Linux):
+  https://github.com/riptidewave93/d200-deck/blob/main/docs/install.md
+- Configure your keys:
+  https://riptidewave93.github.io/d200-configure/
+- Update the firmware:
+  https://github.com/riptidewave93/d200-buildroot/blob/main/docs/update.md
+- Source code:
+  https://github.com/riptidewave93/d200-buildroot (firmware)
+  https://github.com/riptidewave93/d200-deck (key app, deckhost)
+
+## This D200
+
+Your D200 has these pages:
+
+- Update: http://@IPV4@/update
+- Debug info (for bug reports): http://@IPV4@/debug
+
+If they don't open, try the D200's name or its IPv6 address instead:
+
+  http://@NAME@/update
+  http://[@IPV6@]/update
 
 ## Debug build
 
-The D200 is also a USB network adapter. It is `d200-<serial>.local`, where
-`<serial>` is its USB serial number (lowercase), and its IPv4 address is the
-one just below the address it gave this computer.
-
-| What | How |
-|---|---|
-| Shell | `ssh root@d200-<serial>.local` (no password) |
-| Files | `scp` / `sftp` to `root@d200-<serial>.local` |
+- Shell: ssh root@@IPV4@ (no password)
+- Files: scp or sftp to root@@IPV4@
+- Fastboot: reboot-to fastboot (in the shell)
