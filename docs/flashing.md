@@ -15,6 +15,8 @@ while it boots. If neither works, see [recovery.md](recovery.md).
 | `0x900000` | 246 MiB | `ubi` | UBI (LEB 126976 B, fastmap) |
 | `0xff00000` | 1 MiB | (none) | Left unused: Rockchip's loader keeps these blocks and `rkdeveloptool ef` doesn't erase them |
 
+Linux sees `idbloader`, `u-boot` and `u-boot-backup` as read-only; only fastboot (U-Boot) and maskrom write them.
+
 UBI volumes:
 
 | Volume | Contents |
