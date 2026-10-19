@@ -10,7 +10,7 @@
 #   flash-fastboot.sh     flashes all of the above over USB fastboot
 #   d200-full.img   idbloader x4 + u-boot + u-boot-backup + ubi, for
 #                   rkdeveloptool with rk3308_loader_wo_ftl.bin (from d200-rkbin)
-#   update.tar      the update bundle for deck-update (docs/ota.md)
+#   update.tar      the update bundle (docs/ota.md)
 # $2: flavour (release or debug, from BR2_ROOTFS_POST_SCRIPT_ARGS)
 set -e
 FLAVOR="${2:-release}"

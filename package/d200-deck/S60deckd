@@ -1,6 +1,7 @@
 #!/bin/sh
 #
-# deckd: the key app (screen + USB HID), restarted if it exits. Logs go to
+# deckd: runs the key app (deckd keys) and the update page (deckd update),
+# restarting either one when it exits; this script restarts deckd. Logs go to
 # syslog.
 #
 

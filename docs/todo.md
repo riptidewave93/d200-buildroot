@@ -4,7 +4,6 @@
 
 | Item | Where |
 |---|---|
-| `deck-update`: receive, check and write update bundles, confirm or report the result ([ota.md](ota.md)) | d200-deck |
 | Test the maskrom keys after the SPL change (checked first thing in SPL now) | d200-buildroot |
 | `hello` reports the OS version and flavour (`/etc/os-release`), not only deckd's version | d200-deck |
 | Test the PC sleep fix (kernel patch 0013): sleep and wake the PC; the D200 must not be reset, and its log must not show `dwc2_hsotg_send_reply: cannot queue req` | d200-buildroot |

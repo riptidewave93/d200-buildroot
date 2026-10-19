@@ -11,9 +11,9 @@ root filesystem, all flashed over USB with fastboot.
 | Part | State |
 |---|---|
 | U-Boot | Boots from SPI NAND, boot screens on the display, fastboot flashing, recovery keys (fastboot, maskrom) |
-| Linux | Boots in ~3 s from UBI, from A/B slots with automatic rollback; read-only root, settings in `/data`. Display, keys, CPU scaling (408-816 MHz) with thermal throttling. Over the USB-C cable: a USB keyboard (HID), the config channel (vendor HID), USB Ethernet (per-device addresses, `d200-<serial>.local`) and a read-only USB drive |
+| Linux | Boots in ~3 s from UBI, from A/B slots with automatic rollback and updates from a web page ([update](docs/update.md)); read-only root, settings in `/data`. Display, keys, CPU scaling (408-816 MHz) with thermal throttling. Over the USB-C cable: a USB keyboard (HID), the config channel (vendor HID), USB Ethernet (per-device addresses, `d200-<serial>.local`) and a read-only USB drive |
 | Key app | [`deckd`](https://github.com/riptidewave93/d200-deck): pages of buttons, media keys, key combos and macros over USB HID. The PC app and the config website are in progress |
-| Not done | Updates over USB Ethernet (the system side is done, the updater `deck-update` is in progress), waking the PC from sleep, our own USB VID:PID, Windows ([to do](docs/todo.md)) |
+| Not done | Waking the PC from sleep, our own USB VID:PID, Windows ([to do](docs/todo.md)) |
 
 ## Versions
 
@@ -53,7 +53,7 @@ Recovery (the fastboot key, the maskrom key combo) works in both. Each flavour b
 | `u-boot-rockchip-usb471.bin`, `-usb472.bin` | The two stages packed into `d200-usb-loader.bin` |
 | `d200-full.img` | The whole install as one image, for `rkdeveloptool wl 0` ([install.md](docs/install.md#3-flash)) |
 | `rk3308_loader_wo_ftl.bin` | Rockchip's raw NAND loader (rkbin), which `rkdeveloptool` needs to write `d200-full.img` |
-| `d200-<version>-<flavour>-update.tar` | Update bundle for `deck-update` ([ota.md](docs/ota.md#bundle)) |
+| `d200-<version>-<flavour>-update.tar` | Update bundle for the update page ([update.md](docs/update.md), [ota.md](docs/ota.md#bundle)) |
 | `SHA256SUMS` | Checksums of the above |
 | `d200-<version>-<flavour>.tar.gz` | All of the above in one archive, for releases (`<version>` is this repo's `git describe`) |
 
@@ -86,7 +86,7 @@ board/ulanzi/d200/
   post-build.sh, post-image.sh     build the USB drive image, the USB loader, kernel.itb, ubi.img and the update bundle
 package/d200-rkbin/                rkbin at a selectable commit
 package/d200-utils/                reboot-to
-package/d200-deck/                 deckd, the key app (Go; source: github.com/riptidewave93/d200-deck)
+package/d200-deck/                 deckd, the key app and update page (Go; source: github.com/riptidewave93/d200-deck)
 depends/, scripts/                 builder image and build scripts
 docs/                              documentation
 ```

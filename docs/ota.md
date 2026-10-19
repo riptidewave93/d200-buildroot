@@ -1,6 +1,6 @@
 # Updates (A/B)
 
-How the D200 updates itself over USB: what the system provides, and what the updater (`deck-update`, in
+How the D200 updates itself over USB: what the system provides, and what the updater (`deckd update`, in
 [d200-deck](https://github.com/riptidewave93/d200-deck)) does with it. Flashing over fastboot is in
 [flashing.md](flashing.md).
 
@@ -80,7 +80,7 @@ An uncompressed tar, `d200-<version>-<flavour>-update.tar` in a build's `output/
 
 ## Updating
 
-Everything below is done by deck-update, as root.
+Everything below is done by the updater, as root.
 
 **Receive:**
 1. Check the free space on `/data` against the upload size, then stream the tar into `/data/update/`, one file
@@ -91,7 +91,7 @@ Everything below is done by deck-update, as root.
 3. A release device refuses `flavour: debug`.
 4. Wait for the confirming key press on the device before writing anything.
 
-`/data/update` is emptied at every boot (`S00data`). deck-update empties it too when an update fails without a
+`/data/update` is emptied at every boot (`S00data`). The updater empties it too when an update fails without a
 reboot.
 
 **Write**, in this order. Each target is retried once from its file before the update stops. A stop leaves
@@ -130,11 +130,11 @@ what was already written; every step is compatible with the running system.
    fw_setenv slot <inactive> upgrade_available 1 bootcount 0 ota_result trial
    ```
 
-**Confirm**, at every start of deck-update:
+**Confirm**, at every start of the updater:
 
 | `/proc/cmdline` vs env | What to do |
 |---|---|
-| `upgrade_available=1`, `d200.slot` = `slot` | Trial boot. Wait up to ~90 s for deckd to be healthy, then `fw_setenv upgrade_available 0 bootcount 0 ota_result ok`. Not healthy: reboot (it counts toward the rollback) |
+| `upgrade_available=1`, `d200.slot` = `slot` | Trial boot. Wait up to ~90 s for the key app to be healthy, then `fw_setenv upgrade_available 0 bootcount 0 ota_result ok`. Not healthy: reboot (it counts toward the rollback) |
 | `upgrade_available=1`, `d200.slot` ≠ `slot` | U-Boot couldn't boot the new slot: `fw_setenv slot <running> upgrade_available 0 bootcount 0 ota_result failed` |
 | `ota_result=rolled-back` | The new slot failed 3 boots. Report it |
 

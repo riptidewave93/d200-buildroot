@@ -4,6 +4,6 @@ config BR2_PACKAGE_D200_DECK
 	help
 	  deckd: shows pages of buttons on the D200 screen and runs
 	  their actions (USB HID keys, media keys, macros); serves the
-	  config channel.
+	  config channel and the update page.
 
 	  https://github.com/riptidewave93/d200-deck

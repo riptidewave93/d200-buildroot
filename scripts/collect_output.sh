@@ -23,7 +23,7 @@ version=$(sed -n 's/^VERSION="\(.*\)"$/\1/p' "${brout}/target/usr/lib/os-release
 bundle="d200-${version:-dev}-${flavor}"
 tar -C "${out}" --transform "s,^,${bundle}/," -czf "${out}/${bundle}.tar.gz" ${files} SHA256SUMS
 
-# Update bundle for deck-update (docs/ota.md)
+# Update bundle (docs/ota.md)
 cp "${images}/update.tar" "${out}/${bundle}-update.tar"
 (cd "${out}" && sha256sum "${bundle}-update.tar" >> SHA256SUMS)
 echo "Saved build files to ${out#${ourpath}/}/ (bundle: ${bundle}.tar.gz, update: ${bundle}-update.tar)"
