@@ -1,0 +1,48 @@
+name: Release
+
+# On a version tag: build the release and debug images, sign their update
+# bundles with the D200_SIGNING_KEY secret (docs/ota.md#signing) and attach
+# them to a draft GitHub release. Run by hand, it keeps them as artifacts.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      D200_SIGNING_KEY: ${{ secrets.D200_SIGNING_KEY }}
+    steps:
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the version comes from git describe
+
+      - name: Build release
+        run: make build
+
+      - name: Build debug
+        run: make build FLAVOR=debug
+
+      - name: Draft a GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" \
+            output/*/d200-*.tar.gz output/*/d200-*-update.tar
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: d200-${{ github.sha }}
+          path: |
+            output/*/d200-*.tar.gz
+            output/*/d200-*-update.tar
