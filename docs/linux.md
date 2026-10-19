@@ -50,7 +50,7 @@ builds have neither. Services:
 | `S00data` | Mounts the UBI volume `data` at `/data` (formats it if it doesn't mount), and empties `/data/update` |
 | `S10loopback` | Brings up `lo` (`127.0.0.1`, `::1`); there are no ifupdown network scripts |
 | `S15watchdog` | Feeds `/dev/watchdog`. U-Boot starts it with a 60 s timeout, so a hung system resets |
-| `S30usb-gadget` | USB functions; USB Ethernet addresses, DHCP server (udhcpd) and IPv6 router advertisements (radvd); the hostname `d200-<serial>`. `apply` applies the USB drive setting ([USB](#usb)) |
+| `S30usb-gadget` | USB functions; USB Ethernet addresses, DHCP server (udhcpd) and IPv6 router advertisements (radvd); the hostname `d200-<serial>`. `apply` applies the USB settings ([USB](#usb)) |
 | `S50dropbear` | Debug builds only. SSH server on USB Ethernet (the only network); root without a password. Includes SFTP, so `scp`/`sftp` work |
 | `S50mdnsd` | mDNS on USB Ethernet: answers for `d200-<serial>.local` and advertises the web server (`_http._tcp`), plus SSH in debug builds |
 | `S60deckd` | `deckd` ([d200-deck](https://github.com/riptidewave93/d200-deck), packaged in `package/d200-deck`): the key app and the update page on port 80 ([update.md](update.md)), each restarted when it exits. `deckd` itself is restarted when it exits or hangs: when its heartbeat, `/run/deckd.alive`, doesn't change for 60 s. Its config and update state are in `/data/deckd` |

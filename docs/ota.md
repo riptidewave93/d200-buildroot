@@ -42,7 +42,7 @@ everything else comes from the running U-Boot:
 | `slot` | `a`, `b` | Slot to boot |
 | `upgrade_available` | `0`, `1` | `1`: the slot is on trial. Every boot counts, and the env is saved each boot |
 | `bootcount` | number | Boots since the trial started. Past 3, U-Boot switches `slot`, sets `upgrade_available=0`, `bootcount=0`, `ota_result=rolled-back` |
-| `ota_result` | `trial`, `ok`, `failed`, `rolled-back` | Outcome of the last update, for the updater to report |
+| `ota_result` | `trial`, `ok`, `failed`, `rolled-back`, `fell-back` | Outcome of the last update, or `fell-back` when the stable slot stopped booting, for the updater to report |
 
 Linux reads and writes them with `fw_printenv` / `fw_setenv` (`/etc/fw_env.config`). A fresh install has an
 empty env; the tools then use the defaults from `/etc/u-boot-initial-env` (`slot=a`).
@@ -138,7 +138,8 @@ what was already written; every step is compatible with the running system.
      read back and compare.
    - On an erase or write error, mark the block bad (`MEMSETBADBLOCK`) and redo that partition.
    - A `u-boot` that fails twice is erased completely, so SPL falls back to the new backup.
-3. **`kernel`**, then **`rootfs`**, into the inactive slot:
+3. **`kernel`**, then **`rootfs`**, into the inactive slot: the one Linux isn't running from (`d200.slot` in
+   `/proc/cmdline`). Never take it from the env's `slot`, which can name a slot that doesn't boot:
    - If the volume is missing, create it (`UBI_IOCMKVOL` on `/dev/ubi0`, with its fixed ID, type and size from
      the layout table); if it is smaller than the image, grow it (`UBI_IOCRSVOL`).
    - `UBI_IOCVOLUP` with the image size on `/dev/ubi0_<id>`, write the image, close, read back and compare
@@ -157,6 +158,7 @@ what was already written; every step is compatible with the running system.
 | `upgrade_available=1`, `d200.slot` = `slot` | Trial boot. Wait up to ~90 s for the key app to be healthy, then `fw_setenv upgrade_available 0 bootcount 0 ota_result ok`. Not healthy: reboot (it counts toward the rollback) |
 | `upgrade_available=1`, `d200.slot` ≠ `slot` | U-Boot couldn't boot the new slot: `fw_setenv slot <running> upgrade_available 0 bootcount 0 ota_result failed` |
 | `ota_result=rolled-back` | The new slot failed 3 boots. Report it |
+| `upgrade_available=0`, `d200.slot` ≠ `slot` | The stable slot didn't boot, and U-Boot fell back to the other one: `fw_setenv slot <running> bootcount 0 ota_result fell-back`. An update repairs the broken slot. An empty env (never updated) is left alone |
 
 **Report:** `ota_result`, the version of each slot, and per target what happened (written, skipped,
 retries, blocks marked bad, IDB copies left invalid).
