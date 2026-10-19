@@ -10,7 +10,10 @@
 #   flash-fastboot.sh     flashes all of the above over USB fastboot
 #   d200-full.img   idbloader x4 + u-boot + u-boot-backup + ubi, for
 #                   rkdeveloptool with rk3308_loader_wo_ftl.bin (from d200-rkbin)
+#   update.tar      the update bundle for deck-update (docs/ota.md)
+# $2: flavour (release or debug, from BR2_ROOTFS_POST_SCRIPT_ARGS)
 set -e
+FLAVOR="${2:-release}"
 
 # mkimage puts the TPL+SPL right after the header; move it to the second block
 # (idempotent, so a rebuild without U-Boot can run this again)
@@ -63,4 +66,25 @@ if [ -f "$BINARIES_DIR/Image.gz" ]; then
 	dd if="$BINARIES_DIR/u-boot.itb" of="$FULL" bs=1M seek=1 conv=notrunc status=none
 	dd if="$BINARIES_DIR/u-boot.itb" of="$FULL" bs=1M seek=5 conv=notrunc status=none
 	cat "$BINARIES_DIR/ubi.img" >> "$FULL"
+
+	# Update bundle: manifest.json, then the images in write order
+	. "$TARGET_DIR/usr/lib/os-release"
+	MANIFEST="$BINARIES_DIR/manifest.json"
+	{
+		printf '{\n  "format": 1,\n  "product": "d200",\n'
+		printf '  "flavour": "%s",\n  "version": "%s",\n  "build_id": %s,\n' \
+			"$FLAVOR" "$VERSION" "$BUILD_ID"
+		printf '  "images": [\n'
+		sep=
+		for t in idbloader:idbloader.img u-boot:u-boot.itb kernel:kernel.itb rootfs:rootfs.ubifs; do
+			f=${t#*:}
+			printf '%b    {"target": "%s", "file": "%s", "size": %s, "sha256": "%s"}' "$sep" \
+				"${t%%:*}" "$f" "$(stat -c%s "$BINARIES_DIR/$f")" \
+				"$(sha256sum "$BINARIES_DIR/$f" | cut -d' ' -f1)"
+			sep=',\n'
+		done
+		printf '\n  ]\n}\n'
+	} > "$MANIFEST"
+	tar -C "$BINARIES_DIR" --owner=0 --group=0 --format=ustar -cf "$BINARIES_DIR/update.tar" \
+		manifest.json idbloader.img u-boot.itb kernel.itb rootfs.ubifs
 fi

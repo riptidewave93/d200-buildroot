@@ -1,6 +1,7 @@
 #!/bin/bash
 # Copy the files we care about to ./output/<date>-<flavour>/ plus a release
-# bundle (d200-<version>-<flavour>.tar.gz), keeping the last KEEP builds of each
+# bundle (d200-<version>-<flavour>.tar.gz) and the update bundle
+# (d200-<version>-<flavour>-update.tar), keeping the last KEEP builds of each
 # flavour.
 #   collect_output.sh [release|debug]
 set -e
@@ -21,6 +22,10 @@ done
 version=$(sed -n 's/^VERSION="\(.*\)"$/\1/p' "${brout}/target/usr/lib/os-release")
 bundle="d200-${version:-dev}-${flavor}"
 tar -C "${out}" --transform "s,^,${bundle}/," -czf "${out}/${bundle}.tar.gz" ${files} SHA256SUMS
-echo "Saved build files to ${out#${ourpath}/}/ (bundle: ${bundle}.tar.gz)"
+
+# Update bundle for deck-update (docs/ota.md)
+cp "${images}/update.tar" "${out}/${bundle}-update.tar"
+(cd "${out}" && sha256sum "${bundle}-update.tar" >> SHA256SUMS)
+echo "Saved build files to ${out#${ourpath}/}/ (bundle: ${bundle}.tar.gz, update: ${bundle}-update.tar)"
 
 ls -d "${ourpath}"/output/2*-"${flavor}"/ | head -n -"${keep}" | xargs -r rm -rf
