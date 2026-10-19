@@ -314,7 +314,7 @@ index 000000000..a7349dae9
 +
 +			partition@900000 {
 +				label = "ubi";
-+				reg = <0x900000 0xf700000>;
++				reg = <0x900000 0xf600000>;	/* the last 1 MiB is left to the Rockchip loader */
 +			};
 +		};
 +	};

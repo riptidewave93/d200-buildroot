@@ -12,7 +12,8 @@ while it boots. If neither works, see [recovery.md](recovery.md).
 | `0x000000` | 1 MiB | `idbloader` | 4 copies of `idbloader.img` (rkbin DDR init + SPL), one every 256 KiB |
 | `0x100000` | 4 MiB | `u-boot` | `u-boot.itb` (BL31 + U-Boot + DTB) |
 | `0x500000` | 4 MiB | `u-boot-backup` | `u-boot.itb` again; SPL falls back to it |
-| `0x900000` | 247 MiB | `ubi` | UBI (LEB 126976 B, fastmap) |
+| `0x900000` | 246 MiB | `ubi` | UBI (LEB 126976 B, fastmap) |
+| `0xff00000` | 1 MiB | (none) | Left unused: Rockchip's loader keeps these blocks and `rkdeveloptool ef` doesn't erase them |
 
 UBI volumes:
 
