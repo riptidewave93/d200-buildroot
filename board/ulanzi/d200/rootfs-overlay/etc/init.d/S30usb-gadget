@@ -5,7 +5,9 @@
 # the PC and IPv6 router advertisements.
 #
 # Settings in /data/usb-gadget.conf (KEY=value lines, written by deckd):
-#   drive=0   no USB drive (msc); anything else, or no file, keeps it
+#   drive=0       no USB drive (msc); anything else, or no file, keeps it
+#   net4=<IPv4>   use the /30 holding this address (deck first, PC second)
+#                 instead of the one derived from the serial
 # "apply" makes the running gadget match them.
 #
 
@@ -36,8 +38,12 @@ mac() {
 	serial | md5sum | sed "s/^\(..\)\(..\)\(..\)\(..\)\(..\).*/$1:\1:\2:\3:\4:\5/"
 }
 
+setting() {
+	sed -n "s/^$1=//p" $SETTINGS 2>/dev/null | tail -n 1
+}
+
 drive_wanted() {
-	[ "$(sed -n 's/^drive=//p' $SETTINGS 2>/dev/null | tail -n 1)" != 0 ]
+	[ "$(setting drive)" != 0 ]
 }
 
 add_function() {
@@ -119,28 +125,61 @@ netid() {
 	DEV_IP6="$g::1"
 }
 
-start_network() {
-	ifname=$(cat $G/functions/ncm.usb0/ifname)
-	if [ -r /proc/device-tree/serial-number ]; then
-		netid "$(serial)"
-		# the mDNS name, d200-<serial>.local
-		hostname "d200-$(serial | tr A-F a-f)"
-	fi
-	ip addr add $DEV_IP4/30 brd + dev "$ifname"
-	[ -n "$DEV_IP6" ] && ip -6 addr add $DEV_IP6/64 dev "$ifname"
-	ip link set "$ifname" up
+# net4= from the settings, if it's a unicast address: sets DEV_IP4 PEER_IP4
+net4() {
+	a=$(setting net4)
+	echo "$a" | grep -qE '^((0|[1-9][0-9]{0,2})\.){3}(0|[1-9][0-9]{0,2})$' || return
+	set -- $(echo "$a" | tr . ' ')
+	[ "$1" -ge 1 ] && [ "$1" -le 223 ] && [ "$1" != 127 ] &&
+		[ "$2" -le 255 ] && [ "$3" -le 255 ] && [ "$4" -le 255 ] || return
+	DEV_IP4="$1.$2.$3.$(( ($4 & 252) + 1 ))"
+	PEER_IP4="$1.$2.$3.$(( ($4 & 252) + 2 ))"
+}
+
+# Sets DEV_IP4 PEER_IP4 DEV_IP6 NET6
+addresses() {
+	[ -r /proc/device-tree/serial-number ] && netid "$(serial)"
+	net4
+}
+
+stop_pid() {
+	[ -f "$1" ] || return 0
+	p=$(cat "$1")
+	kill "$p" 2>/dev/null
+	for i in 1 2 3 4 5; do
+		kill -0 "$p" 2>/dev/null || break
+		sleep 1
+	done
+	rm -f "$1"
+}
+
+# DHCP: the PC gets PEER_IP4 on interface $1
+start_udhcpd() {
 	cat > $UDHCPD_CONF <<-EOF
-		interface $ifname
+		interface $1
 		start $PEER_IP4
 		end $PEER_IP4
 		max_leases 1
 		lease_file /tmp/udhcpd-usb.leases
-		pidfile $UDHCPD_PID
 		option subnet 255.255.255.252
 		option lease 86400
 	EOF
+	rm -f /tmp/udhcpd-usb.leases
 	touch /tmp/udhcpd-usb.leases
-	udhcpd $UDHCPD_CONF
+	# in the foreground under start-stop-daemon, for its PID: BusyBox has no
+	# pidfile support
+	start-stop-daemon -S -q -b -m -p $UDHCPD_PID -x /usr/sbin/udhcpd -- -f -S $UDHCPD_CONF
+}
+
+start_network() {
+	ifname=$(cat $G/functions/ncm.usb0/ifname)
+	addresses
+	# the mDNS name, d200-<serial>.local
+	[ -r /proc/device-tree/serial-number ] && hostname "d200-$(serial | tr A-F a-f)"
+	ip addr add $DEV_IP4/30 brd + dev "$ifname"
+	[ -n "$DEV_IP6" ] && ip -6 addr add $DEV_IP6/64 dev "$ifname"
+	ip link set "$ifname" up
+	start_udhcpd "$ifname"
 
 	[ -n "$NET6" ] || return
 	# the PC takes an address from the prefix but no route through the deck
@@ -198,33 +237,49 @@ start() {
 	echo "OK"
 }
 
-# Changing the functions re-binds the gadget: the PC sees the D200 unplugged and
-# plugged back in, and /dev/hidg* are recreated. usb0 keeps its addresses.
+# A change re-binds the gadget: the PC sees the D200 unplugged and plugged back
+# in (and asks for a new address), and /dev/hidg* are recreated.
 apply() {
 	[ -d $G ] || { start; return; }
-	case " $USB_FUNCTIONS " in *" msc "*) ;; *) return 0 ;; esac
-	have=0; [ -e $G/configs/c.1/mass_storage.usb0 ] && have=1
-	want=0; drive_wanted && want=1
-	[ $have = $want ] && return 0
-
 	cd $G || return 1
-	echo "" > UDC || return 1
-	if [ $want = 1 ]; then
-		add_function msc
-	else
-		rm configs/c.1/mass_storage.usb0 && rmdir functions/mass_storage.usb0
+	drive=0
+	case " $USB_FUNCTIONS " in *" msc "*)
+		have=0; [ -e configs/c.1/mass_storage.usb0 ] && have=1
+		want=0; drive_wanted && want=1
+		[ $have = $want ] || drive=1
+	esac
+	net=0
+	if [ -d functions/ncm.usb0 ]; then
+		ifname=$(cat functions/ncm.usb0/ifname)
+		addresses
+		cur=$(ip -4 addr show dev "$ifname" | sed -n 's/.* inet \([0-9.]*\)\/.*/\1/p')
+		[ "$cur" = "$DEV_IP4" ] || net=1
 	fi
-	ret=$?
+	[ $drive = 0 ] && [ $net = 0 ] && return 0
+
+	echo "" > UDC || return 1
+	ret=0
+	if [ $drive = 1 ]; then
+		if [ $want = 1 ]; then
+			add_function msc
+		else
+			rm configs/c.1/mass_storage.usb0 && rmdir functions/mass_storage.usb0
+		fi || ret=1
+	fi
+	if [ $net = 1 ]; then
+		stop_pid $UDHCPD_PID
+		ip -4 addr flush dev "$ifname"
+		ip addr add $DEV_IP4/30 brd + dev "$ifname" || ret=1
+		start_udhcpd "$ifname" || ret=1
+	fi
 	ls /sys/class/udc | head -n 1 > UDC || return 1
 	return $ret
 }
 
 stop() {
 	printf "Stopping USB gadget: "
-	for p in $UDHCPD_PID $RADVD_PID; do
-		[ -f $p ] && kill "$(cat $p)" 2>/dev/null
-		rm -f $p
-	done
+	stop_pid $UDHCPD_PID
+	stop_pid $RADVD_PID
 	[ -d $G ] || { echo "OK"; return 0; }
 	cd $G || return 1
 	echo "" > UDC 2>/dev/null

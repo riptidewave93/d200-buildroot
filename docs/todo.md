@@ -11,7 +11,6 @@
 
 | Item | Notes |
 |---|---|
-| USB Ethernet address override | A device setting to replace the per-device `198.18.0.0/15` `/30`, for PCs where it clashes |
 | Own USB VID:PID | e.g. pid.codes; `1d6b:0104` is the kernel's shared test ID |
 | Hung deckd | A heartbeat, so a hung deckd is restarted and not only a crashed one |
 | Windows | USB Ethernet binding, keys and the config channel |

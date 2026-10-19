@@ -86,11 +86,16 @@ Functions are set in `/etc/default/usb-gadget`:
 The order is the interface order, and it is fixed: always-on functions first, the drive last, so turning the drive off
 renumbers nothing. `bcdDevice` is the USB layout version.
 
-**USB drive setting:** `drive=0` in `/data/usb-gadget.conf` turns the drive off; with anything else, or no file, it
-is on. `deckd` writes the file and runs `/etc/init.d/S30usb-gadget apply`, which changes the running gadget only if
-the setting changed. Then the PC sees the D200 unplugged and plugged back in, `/dev/hidg0` and `/dev/hidg1` are
-recreated (reopen them), and `usb0` keeps its addresses. The file holds `KEY=value` lines; keep the ones you don't
-know when rewriting it.
+**Settings** are `KEY=value` lines in `/data/usb-gadget.conf`. A missing or invalid value means the default:
+
+| Key | Default | Set |
+|---|---|---|
+| `drive` | `1`: the USB drive is on | `0`: no USB drive |
+| `net4` | The `/30` derived from the serial (below) | An IPv4 address: the D200 uses the `/30` holding it (the D200 first, the PC second). A dotted quad without leading zeros, first number 1-223 and not 127 |
+
+`deckd` writes the file, keeping lines it doesn't know, and runs `/etc/init.d/S30usb-gadget apply`. That changes the
+running gadget only if a setting changed. Then the PC sees the D200 unplugged and plugged back in (and asks for an
+address again), and `/dev/hidg0` and `/dev/hidg1` are recreated, so they must be reopened.
 
 **Remote wakeup:** the configuration has the remote wakeup bit (`bmAttributes` `0xa0`). While the PC has the bus
 suspended (asleep, or the device selectively suspended), writes to `/dev/hidg0` fail with `EAGAIN`; writing `1` to
@@ -105,12 +110,14 @@ serial so several D200s on one PC don't clash (the same scheme as `netid` in d20
 - IPv6: a ULA `/64`. The D200 is `::1`; its router advertisements let the PC pick its own address, with router
   lifetime 0 (no default route through the D200).
 - Without a CPU serial: `172.31.254.1/30`, IPv4 only.
+- `net4` in the settings replaces the IPv4 `/30`.
 
 Sandboxed apps on Linux (e.g. Flatpak browsers) often can't resolve `.local` names, so the PC app opens the
 D200's IPv4 address, not its mDNS name.
 
 Proxy tools in "fake-IP" mode (Clash, sing-box, Surge) use `198.18.0.0/15` too; only the D200's own 4 addresses are
-affected. Both MAC addresses are derived from the CPU serial, so they stay the same across boots.
+affected, and `net4` moves them elsewhere. Both MAC addresses are derived from the CPU serial, so they stay the same
+across boots.
 
 **Every OUT endpoint must always have a reader on the D200.** The controller has a single RX FIFO for all of them
 ([hardware.md](hardware.md#usb)), so data sent to a function nobody reads blocks it and stalls every function, USB
