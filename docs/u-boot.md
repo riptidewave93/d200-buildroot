@@ -46,8 +46,8 @@ same DT. U-Boot sets `vdd_core` to 1.015 V at start (`regulator-init-microvolt` 
   modes). Patches can't carry binary files, so `external.mk` copies them into the U-Boot tree after patching:
   `d200-boot-logo.bmp` → `drivers/video/u_boot_logo.bmp`, `d200-fastboot.bmp` → `board/ulanzi/d200/d200_fastboot.bmp`.
 - **Watchdog.** It can already be running when U-Boot starts, so the DesignWare watchdog driver is enabled.
-- **Environment** lives in UBI (`env`/`env_r`). After changing default env values (e.g. the boot command), reset a
-  board's saved env with `env default -a; saveenv` ([flashing.md](flashing.md#flashing) shows it over fastboot).
+- **Environment** lives in UBI (`env`/`env_r`). A saved env overrides new defaults; to reset it, see
+  [flashing.md](flashing.md#flashing).
 - **RAM.** The fastboot buffer is 32 MiB at `0x02000000`. The kernel FIT loads at `kernel_addr_r` (`0x02080000`);
   U-Boot itself lives above ~`0x046d0000`.
 

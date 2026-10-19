@@ -1,7 +1,7 @@
 # Linux
 
 Mainline Linux **v7.2.11** with a minimal config, and a small BusyBox root filesystem. Boots in
-about 3 seconds and uses ~16 MiB of its ~115 MiB `MemTotal`.
+about 3 seconds and uses ~28 MiB of its ~115 MiB `MemTotal` with the key app running.
 
 ## Boot
 
@@ -18,14 +18,15 @@ Setting `bootargs` in U-Boot replaces it (e.g. `fastboot oem run:setenv bootargs
 
 - Patches: `board/ulanzi/d200/patches/linux/7.2.11/`: RK3308 VOP support, a generic `rockchip,cmd-panel` panel
   driver, RK3308B-S TSADC support, the RK3308 VOP node, the RK3308B-S SoC dtsi (OPPs, TSADC) and the D200 device
-  tree, the same files U-Boot uses ([u-boot.md](u-boot.md#patches)).
+  tree (the same DT files U-Boot uses, [u-boot.md](u-boot.md#patches)), and a DWC2 fix so the gadget survives the
+  PC sleeping.
 - Config: `board/ulanzi/d200/linux.config`, started from `allnoconfig`. Everything is built in, no modules:
   - SoC: clocks, pinctrl, GPIO, UART, watchdog;
   - storage: SPI NAND, UBI, UBIFS (LZO only; the rootfs is built with LZO);
   - USB device mode (DWC2 + PHY) with configfs gadgets: HID, NCM, mass storage;
   - IPv4 (with multicast, for mDNS) and IPv6;
   - display: DRM/KMS (VOP, RGB output, panel, PWM backlight), 12 MiB CMA; no fbdev, no fbcon;
-  - keys: matrix keypad on evdev.
+  - keys: matrix keypad on evdev;
   - CPU: cpufreq-dt (408/600/816 MHz, `schedutil`) on the PWM `vdd_core` regulator, TSADC thermal zone with CPU
     throttling.
 - To change the config:
@@ -97,10 +98,8 @@ affected. Both MAC addresses are derived from the CPU serial, so they stay the s
 **Every OUT endpoint must always have a reader on the D200.** The controller has a single RX FIFO for all of them
 ([hardware.md](hardware.md#usb)), so data sent to a function nobody reads blocks it and stalls every function, USB
 Ethernet included. NCM and mass storage always read theirs, and both HID functions take output reports over the
-control endpoint instead of an OUT endpoint. This is also why there is no USB serial port: a PC probing it for a modem
-stalled everything.
-
-Not tested yet: Windows (NCM driver binding).
+control endpoint instead of an OUT endpoint. For the same reason there is no USB serial port: a PC probing it for a
+modem would stall everything.
 
 ## Display and keys
 

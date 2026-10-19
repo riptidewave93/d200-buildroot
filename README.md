@@ -11,9 +11,9 @@ root filesystem, all flashed over USB with fastboot.
 | Part | State |
 |---|---|
 | U-Boot | Boots from SPI NAND, boot screens on the display, fastboot flashing, recovery keys (fastboot, maskrom) |
-| Linux | Boots in ~3 s from UBI. Display, keys, CPU scaling (408-816 MHz) with thermal throttling. Over the USB-C cable: a USB keyboard (HID), the config channel (vendor HID), USB Ethernet and a read-only USB drive |
+| Linux | Boots in ~3 s from UBI. Display, keys, CPU scaling (408-816 MHz) with thermal throttling. Over the USB-C cable: a USB keyboard (HID), the config channel (vendor HID), USB Ethernet (per-device addresses, `d200-<serial>.local`) and a read-only USB drive |
 | Key app | [`deckd`](https://github.com/riptidewave93/d200-deck): pages of buttons, media keys, key combos and macros over USB HID. The PC app and the config website are in progress |
-| Not done | Updates without fastboot, waking the PC from sleep, our own USB VID:PID, the OTP CPU ID in Linux ([to do](docs/todo.md)) |
+| Not done | Updates without fastboot, waking the PC from sleep, our own USB VID:PID, Windows ([to do](docs/todo.md)) |
 
 ## Versions
 
@@ -76,7 +76,7 @@ board/ulanzi/d200/
   patches/mdnsd/1.2/               mdnsd fix (IPv6 mDNS before the PC brings the link up)
   linux.config                     kernel config
   busybox.fragment                 BusyBox additions
-  rootfs-overlay/                  files added to the root filesystem (USB gadget, SSH settings)
+  rootfs-overlay/                  files added to the root filesystem (init scripts, SSH settings)
   usb-drive/                       contents of the read-only USB drive
   kernel.its, ubinize.cfg          kernel FIT and UBI image layouts
   logo/                            boot and fastboot screens (BMPs) and their generator
