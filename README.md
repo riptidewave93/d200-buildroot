@@ -73,6 +73,7 @@ configs/ulanzi_d200_defconfig      Buildroot defconfig
 board/ulanzi/d200/
   patches/uboot/2026.10/           U-Boot patch series
   patches/linux/7.2.11/            kernel patches
+  patches/mdnsd/1.2/               mdnsd fix (IPv6 mDNS before the PC brings the link up)
   linux.config                     kernel config
   busybox.fragment                 BusyBox additions
   rootfs-overlay/                  files added to the root filesystem (USB gadget, SSH settings)

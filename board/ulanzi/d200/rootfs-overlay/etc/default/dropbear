@@ -1,2 +1,2 @@
-# USB Ethernet only; root without a password
-DROPBEAR_ARGS="-B -p 172.31.254.1:22"
+# USB Ethernet is the only network; root without a password
+DROPBEAR_ARGS="-B -p 22"

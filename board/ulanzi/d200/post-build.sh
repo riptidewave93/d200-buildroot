@@ -17,6 +17,12 @@ BUILD_ID=$(date -u +%Y%m%d%H%M)
 HOME_URL="https://github.com/riptidewave93/d200-buildroot"
 EOT
 
+# S30usb-gadget starts radvd with the deck's own prefix
+rm -f "$TARGET_DIR/etc/init.d/S50radvd"
+# mdnsd installs ssh.service whatever its options say: advertise SSH only
+# with an SSH server (debug builds)
+[ -e "$TARGET_DIR/usr/sbin/dropbear" ] || rm -f "$TARGET_DIR/etc/mdns.d/ssh.service"
+
 # The read-only USB drive image (mass storage gadget) from usb-drive/: the
 # README gets the version, and its debug section only in debug builds
 IMG="$TARGET_DIR/usr/share/d200/usb-drive.img"

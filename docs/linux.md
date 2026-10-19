@@ -23,7 +23,7 @@ Setting `bootargs` in U-Boot replaces it (e.g. `fastboot oem run:setenv bootargs
   - SoC: clocks, pinctrl, GPIO, UART, watchdog;
   - storage: SPI NAND, UBI, UBIFS (LZO only; the rootfs is built with LZO);
   - USB device mode (DWC2 + PHY) with configfs gadgets: HID, NCM, mass storage;
-  - IPv4;
+  - IPv4 (with multicast, for mDNS) and IPv6;
   - display: DRM/KMS (VOP, RGB output, panel, PWM backlight), 12 MiB CMA; no fbdev, no fbcon;
   - keys: matrix keypad on evdev.
   - CPU: cpufreq-dt (408/600/816 MHz, `schedutil`) on the PWM `vdd_core` regulator, TSADC thermal zone with CPU
@@ -46,8 +46,9 @@ builds have neither. Services:
 | Service | What |
 |---|---|
 | `S15watchdog` | Feeds `/dev/watchdog`. U-Boot starts it with a 60 s timeout, so a hung system resets |
-| `S30usb-gadget` | USB functions, USB Ethernet address, DHCP server |
-| `S50dropbear` | Debug builds only. SSH server on `172.31.254.1` only; root without a password. Includes SFTP, so `scp`/`sftp` work |
+| `S30usb-gadget` | USB functions; USB Ethernet addresses, DHCP server (udhcpd) and IPv6 router advertisements (radvd); the hostname `d200-<serial>` |
+| `S50dropbear` | Debug builds only. SSH server on USB Ethernet (the only network); root without a password. Includes SFTP, so `scp`/`sftp` work |
+| `S50mdnsd` | mDNS on USB Ethernet: answers for `d200-<serial>.local` and advertises the web server (`_http._tcp`), plus SSH in debug builds |
 | `S60deckd` | `deckd`, the key app ([d200-deck](https://github.com/riptidewave93/d200-deck), packaged in `package/d200-deck`). Work in progress |
 | syslogd, klogd | BusyBox defaults. Logs go to `/var/log/messages`, in RAM (`/var/log` is `/tmp`), about 400 KB at most |
 
@@ -70,15 +71,27 @@ Functions are set in `/etc/default/usb-gadget`:
 |---|---|---|
 | `hid` | Keyboard, media keys, system control, mouse | `/dev/hidg0`. `deckd` provides the report descriptor and sends the reports; without it the function is skipped |
 | `raw` | A vendor HID device (usage page `0xFFD2`): the config channel for the website (WebHID) and the PC app | `/dev/hidg1`, served by `deckd` |
-| `ncm` | USB Ethernet (built-in driver on Linux, macOS, Windows 10/11) | `usb0`, **172.31.254.1/30** |
+| `ncm` | USB Ethernet (built-in driver on Linux, macOS, Windows 10/11) | `usb0`, addresses below |
 | `msc` | Read-only USB drive "D200 DECK" with a README | `/usr/share/d200/usb-drive.img`, built from `board/ulanzi/d200/usb-drive/` |
 
 The order is the interface order, and it is fixed: always-on functions first, the drive last, so turning the drive off
 renumbers nothing. `bcdDevice` is the USB layout version.
 
-**USB Ethernet:** the D200 is `172.31.254.1` (debug builds: `ssh root@172.31.254.1`). Its DHCP server gives the PC
-`172.31.254.2/30` with no gateway and no DNS, so the PC keeps its normal network. Both MAC addresses are derived from
-the CPU serial, so they stay the same across boots.
+**USB Ethernet:** the D200 is `d200-<serial>.local` over mDNS, where `<serial>` is its USB serial number (the CPU
+serial, lowercase); debug builds: `ssh root@d200-<serial>.local`. Each D200 has its own addresses, derived from the
+serial so several D200s on one PC don't clash (the same scheme as `netid` in d200-deck):
+
+- IPv4: a `/30` in `198.18.0.0/15`. The D200 is the first address; its DHCP server gives the PC the second, with no
+  gateway and no DNS, so the PC keeps its normal network.
+- IPv6: a ULA `/64`. The D200 is `::1`; its router advertisements let the PC pick its own address, with router
+  lifetime 0 (no default route through the D200).
+- Without a CPU serial: `172.31.254.1/30`, IPv4 only.
+
+Sandboxed apps on Linux (e.g. Flatpak browsers) often can't resolve `.local` names, so the PC app opens the
+D200's IPv4 address, not its mDNS name.
+
+Proxy tools in "fake-IP" mode (Clash, sing-box, Surge) use `198.18.0.0/15` too; only the D200's own 4 addresses are
+affected. Both MAC addresses are derived from the CPU serial, so they stay the same across boots.
 
 **Every OUT endpoint must always have a reader on the D200.** The controller has a single RX FIFO for all of them
 ([hardware.md](hardware.md#usb)), so data sent to a function nobody reads blocks it and stalls every function, USB

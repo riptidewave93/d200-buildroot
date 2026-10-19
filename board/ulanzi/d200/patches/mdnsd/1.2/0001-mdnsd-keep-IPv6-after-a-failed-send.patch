@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Mon, 19 Oct 2026 09:30:47 -0500
+Subject: [PATCH] mdnsd: keep IPv6 after a failed send
+
+A send on the IPv6 socket fails while the interface has no usable
+source address, e.g. a USB gadget interface before the host has brought
+the link up (no link-local address yet). mdnsd then closed the IPv6
+socket for good, until an address change.
+
+Drop the packet and keep the socket on send errors; only read errors
+disable IPv6.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ src/mdnsd.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/mdnsd.c b/src/mdnsd.c
+index b837e17..6380298 100644
+--- a/src/mdnsd.c
++++ b/src/mdnsd.c
+@@ -539,10 +539,16 @@ int main(int argc, char *argv[])
+ #ifdef ENABLE_IPV6
+ 			if (iface->mdns6 && iface->sd6 >= 0) {
+ 				rc = mdnsd_step(iface->mdns6, iface->sd6, FD_ISSET(iface->sd6, &fds), true, &next);
+-				if (rc) {
++				if (rc == 1) {
+ 					ERR("%s: IPv6 socket error, disabling IPv6", iface->ifname);
+ 					close(iface->sd6);
+ 					iface->sd6 = -1;
++				} else if (rc == 2) {
++					/*
++					 * No usable source address yet, e.g. before the
++					 * link is up: drop this packet, keep IPv6
++					 */
++					DBG("%s: IPv6 send failed: %s", iface->ifname, strerror(errno));
+ 				} else if (tv.tv_sec > next.tv_sec)
+ 					tv = next;
+ 			}

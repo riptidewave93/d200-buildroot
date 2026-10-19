@@ -60,6 +60,11 @@ BR2_TARGET_GENERIC_ISSUE="Ulanzi D200"
 # BR2_TARGET_GENERIC_GETTY is not set
 # BR2_PACKAGE_IFUPDOWN_SCRIPTS is not set
 BR2_PACKAGE_BUSYBOX_WATCHDOG=y
+# USB Ethernet: d200-<serial>.local, and IPv6 addresses for the PC (radvd is
+# started by S30usb-gadget)
+BR2_PACKAGE_MDNSD=y
+BR2_PACKAGE_MDNSD_HTTP_SERVICE=y
+BR2_PACKAGE_RADVD=y
 # D200 tools (reboot-to) and the key app (deckd)
 BR2_PACKAGE_D200_UTILS=y
 BR2_PACKAGE_HOST_GO=y

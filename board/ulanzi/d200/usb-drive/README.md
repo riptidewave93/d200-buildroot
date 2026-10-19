@@ -12,10 +12,11 @@ This drive is read-only.
 
 ## Debug build
 
-The D200 is also a USB network adapter: it gives this computer the address
-`172.31.254.2` and is itself at `172.31.254.1`.
+The D200 is also a USB network adapter. It is `d200-<serial>.local`, where
+`<serial>` is its USB serial number (lowercase), and its IPv4 address is the
+one just below the address it gave this computer.
 
 | What | How |
 |---|---|
-| Shell | `ssh root@172.31.254.1` (no password) |
-| Files | `scp` / `sftp` to `root@172.31.254.1` |
+| Shell | `ssh root@d200-<serial>.local` (no password) |
+| Files | `scp` / `sftp` to `root@d200-<serial>.local` |

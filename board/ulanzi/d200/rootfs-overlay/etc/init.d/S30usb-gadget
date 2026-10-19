@@ -1,17 +1,23 @@
 #!/bin/sh
 #
 # USB gadget on the USB-C port: one composite device with the functions in
-# /etc/default/usb-gadget, plus the USB Ethernet address and its DHCP server.
+# /etc/default/usb-gadget, plus USB Ethernet: the deck's addresses, DHCP for
+# the PC and IPv6 router advertisements.
 #
 
 USB_FUNCTIONS="hid raw ncm msc"
 [ -r /etc/default/usb-gadget ] && . /etc/default/usb-gadget
 
 G=/sys/kernel/config/usb_gadget/d200
-DEV_IP=172.31.254.1/30
-PEER_IP=172.31.254.2
+# USB Ethernet addresses if the CPU serial is missing (no IPv6)
+DEV_IP4=172.31.254.1
+PEER_IP4=172.31.254.2
+DEV_IP6=
+NET6=
 UDHCPD_CONF=/tmp/udhcpd-usb.conf
 UDHCPD_PID=/var/run/udhcpd-usb.pid
+RADVD_CONF=/tmp/radvd-usb.conf
+RADVD_PID=/var/run/radvd-usb.pid
 USB_DRIVE=/usr/share/d200/usb-drive.img
 
 # CPU serial, passed on by U-Boot
@@ -88,14 +94,36 @@ add_function() {
 	ln -s $f configs/c.1/
 }
 
+# Per-device addresses from serial $1, the same as d200-deck's netid package:
+# h = SHA-256("d200-net\0" + lowercase serial); the top 15 bits of h pick a /30
+# in 198.18.0.0/15 (deck .1, PC .2), the next 40 an IPv6 ULA /64 (deck ::1).
+# Sets DEV_IP4 PEER_IP4 DEV_IP6 NET6.
+netid() {
+	s=$(printf %s "$1" | tr A-F a-f)
+	h=$(printf 'd200-net\000%s' "$s" | sha256sum | cut -c1-14)
+	n=$(( (0x$(echo $h | cut -c1-4) >> 1) << 2 ))
+	p="198.$((18 + (n >> 16))).$(((n >> 8) & 255))"
+	DEV_IP4="$p.$(((n & 255) + 1))"
+	PEER_IP4="$p.$(((n & 255) + 2))"
+	g="fd$(echo $h | cut -c5-6):$(echo $h | cut -c7-10):$(echo $h | cut -c11-14)"
+	NET6="$g::/64"
+	DEV_IP6="$g::1"
+}
+
 start_network() {
 	ifname=$(cat $G/functions/ncm.usb0/ifname)
-	ip addr add $DEV_IP brd + dev "$ifname"
+	if [ -r /proc/device-tree/serial-number ]; then
+		netid "$(serial)"
+		# the mDNS name, d200-<serial>.local
+		hostname "d200-$(serial | tr A-F a-f)"
+	fi
+	ip addr add $DEV_IP4/30 brd + dev "$ifname"
+	[ -n "$DEV_IP6" ] && ip -6 addr add $DEV_IP6/64 dev "$ifname"
 	ip link set "$ifname" up
 	cat > $UDHCPD_CONF <<-EOF
 		interface $ifname
-		start $PEER_IP
-		end $PEER_IP
+		start $PEER_IP4
+		end $PEER_IP4
 		max_leases 1
 		lease_file /tmp/udhcpd-usb.leases
 		pidfile $UDHCPD_PID
@@ -104,6 +132,22 @@ start_network() {
 	EOF
 	touch /tmp/udhcpd-usb.leases
 	udhcpd $UDHCPD_CONF
+
+	[ -n "$NET6" ] || return
+	# the PC takes an address from the prefix but no route through the deck
+	cat > $RADVD_CONF <<-EOF
+		interface $ifname {
+			AdvSendAdvert on;
+			IgnoreIfMissing on;
+			MaxRtrAdvInterval 60;
+			AdvDefaultLifetime 0;
+			prefix $NET6 {
+				AdvOnLink on;
+				AdvAutonomous on;
+			};
+		};
+	EOF
+	radvd -C $RADVD_CONF -p $RADVD_PID
 }
 
 start() {
@@ -145,8 +189,10 @@ start() {
 
 stop() {
 	printf "Stopping USB gadget: "
-	[ -f $UDHCPD_PID ] && kill "$(cat $UDHCPD_PID)" 2>/dev/null
-	rm -f $UDHCPD_PID
+	for p in $UDHCPD_PID $RADVD_PID; do
+		[ -f $p ] && kill "$(cat $p)" 2>/dev/null
+		rm -f $p
+	done
 	[ -d $G ] || { echo "OK"; return 0; }
 	cd $G || return 1
 	echo "" > UDC 2>/dev/null
