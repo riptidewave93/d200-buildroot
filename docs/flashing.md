@@ -1,6 +1,7 @@
 # Flashing
 
-Updates are flashed over USB-C with fastboot. Coming from the stock firmware? See [install.md](install.md) first.
+Flashing over USB-C with fastboot, and the NAND layout. For the usual ways to update, see [update.md](update.md);
+coming from the stock firmware, see [install.md](install.md) first.
 
 To get the board into fastboot: run `reboot-to fastboot` on it (debug builds, over SSH or the UART), or hold the **top-left key**
 while it boots. If neither works, see [recovery.md](recovery.md).

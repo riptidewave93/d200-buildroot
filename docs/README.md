@@ -3,6 +3,7 @@
 | Doc | Read it for |
 |---|---|
 | [install.md](install.md) | Replacing the stock firmware: back it up, enter maskrom, flash |
+| [update.md](update.md) | Updating: from the update page, over fastboot, or from maskrom |
 | [flashing.md](flashing.md) | Updating over USB (fastboot), the NAND layout, a custom boot screen |
 | [recovery.md](recovery.md) | Getting a board back: keys, maskrom, UART, hardware shorts, restoring the stock firmware |
 | [hardware.md](hardware.md) | Device facts: SoC, storage, display, keys, screen layout, USB, OTP, test points |

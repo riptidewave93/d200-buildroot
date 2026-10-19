@@ -93,8 +93,8 @@ docs/                              documentation
 
 ## Docs
 
-[Install](docs/install.md) · [Flashing](docs/flashing.md) · [Recovery](docs/recovery.md) ·
-[Hardware](docs/hardware.md) · [U-Boot](docs/u-boot.md) · [Linux](docs/linux.md) · [Updates](docs/ota.md) · [all docs](docs/README.md)
+[Install](docs/install.md) · [Update](docs/update.md) · [Flashing](docs/flashing.md) · [Recovery](docs/recovery.md) ·
+[Hardware](docs/hardware.md) · [U-Boot](docs/u-boot.md) · [Linux](docs/linux.md) · [A/B updates](docs/ota.md) · [all docs](docs/README.md)
 
 ## License
 
