@@ -1,19 +1,37 @@
 #!/bin/sh
 #
-# deckd: the key app (screen + USB HID). Logs go to syslog.
+# deckd: the key app (screen + USB HID), restarted if it exits. Logs go to
+# syslog.
 #
 
 PIDFILE=/var/run/deckd.pid
 
+# Restart deckd whenever it exits: after 1 s, doubling up to 30 s while it
+# keeps dying within 10 s of starting.
+supervise() {
+	set -o pipefail
+	delay=1
+	while :; do
+		started=$(date +%s)
+		/usr/bin/deckd 2>&1 | logger -t deckd
+		status=$?
+		[ $(($(date +%s) - started)) -ge 10 ] && delay=1
+		logger -t deckd "exited with status $status, restarting in ${delay}s"
+		sleep $delay
+		delay=$((delay * 2))
+		[ $delay -gt 30 ] && delay=30
+	done
+}
+
 start() {
 	printf "Starting deckd: "
-	start-stop-daemon -S -q -b -m -p $PIDFILE -x /bin/sh -- \
-		-c 'exec /usr/bin/deckd 2>&1 | logger -t deckd'
+	start-stop-daemon -S -q -b -m -p $PIDFILE -x /bin/sh -- "$0" supervise
 	[ $? = 0 ] && echo "OK" || echo "FAIL"
 }
 
 stop() {
 	printf "Stopping deckd: "
+	start-stop-daemon -K -q -p $PIDFILE
 	killall deckd 2>/dev/null
 	# the display stays busy until deckd has exited
 	while pidof deckd >/dev/null; do sleep 0.1; done
@@ -22,7 +40,7 @@ stop() {
 }
 
 case "$1" in
-	start|stop)
+	start|stop|supervise)
 		"$1";;
 	restart|reload)
 		stop
