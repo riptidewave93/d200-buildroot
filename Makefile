@@ -12,7 +12,7 @@ DOCKER_NAME := d200-buildroot-builder
 REPO_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 DOCKER_RUN := docker run --rm $(shell [ -t 0 ] && echo -it) \
 	--user $(shell id -u):$(shell id -g) -e HOME=/tmp \
-	-e FLAVOR=$(FLAVOR) -e KEEP=$(KEEP) -v "$(REPO_DIR)":/repo:Z -w /repo --name $(DOCKER_NAME) $(DOCKER_IMAGE)
+	-e FLAVOR=$(FLAVOR) -e KEEP=$(KEEP) -e D200_SIGNING_KEY -v "$(REPO_DIR)":/repo:Z -w /repo --name $(DOCKER_NAME) $(DOCKER_IMAGE)
 
 .PHONY: build builder-build build-builder-docker shell clean reset
 

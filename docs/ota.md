@@ -52,7 +52,8 @@ empty env; the tools then use the defaults from `/etc/u-boot-initial-env` (`slot
 An uncompressed tar, `d200-<version>-<flavour>-update.tar` in a build's `output/` folder. Members, in order:
 
 1. `manifest.json`
-2. the images, in write order: `idbloader.img`, `u-boot.itb`, `kernel.itb`, `rootfs.ubifs`
+2. `manifest.sig`, only in signed bundles
+3. the images, in write order: `idbloader.img`, `u-boot.itb`, `kernel.itb`, `rootfs.ubifs`
 
 ```json
 {
@@ -78,7 +79,23 @@ An uncompressed tar, `d200-<version>-<flavour>-update.tar` in a build's `output/
 - Every bundle carries all four images. A bootloader image identical to what is on the flash is not rewritten.
   U-Boot builds are reproducible (its build date is the last commit that changed it), so a build without U-Boot
   changes carries the same bootloader images.
-- A signature (`manifest.sig`) is reserved for a later format; format 1 is unsigned.
+- `manifest.sig` is the raw 64-byte Ed25519 signature of `manifest.json`'s exact bytes, which covers the images
+  through their hashes. See [Signing](#signing).
+
+## Signing
+
+Official builds are signed; anyone else's build is not, and installs all the same. The signature only tells the
+user whether a bundle is an official build.
+
+- The build signs when `D200_SIGNING_KEY` holds an Ed25519 private key (PEM), e.g.
+  `D200_SIGNING_KEY="$(cat keys/update-key.pem)" make build`. Official releases are signed in GitHub Actions from
+  the repository secret `D200_SIGNING_KEY`. The private key is never in git: `keys/` and `*.pem` are ignored.
+- The D200 checks it against `/etc/d200/update-key.pub` (PEM, from `rootfs-overlay/etc/d200/update-key.pub`). The
+  update page says "Official build" if it verifies, "Unofficial build" otherwise (no signature, no key, another key).
+- A fork that signs its own builds replaces `update-key.pub` with its public key.
+
+Make a key pair with `openssl genpkey -algorithm ed25519 -out key.pem` and
+`openssl pkey -in key.pem -pubout -out update-key.pub`.
 
 ## Updating
 
@@ -89,7 +106,8 @@ Everything below is done by the updater, as root.
    per member, hashing each file as it is written.
 2. Reject the bundle unless:
    - `format` is 1 and `product` is `d200`;
-   - every listed file is present with the right size and sha256, and there are no other files.
+   - every listed file is present with the right size and sha256, and there are no other files besides
+     `manifest.sig`.
 3. A release device refuses `flavour: debug`.
 4. Wait for the confirming key press on the device before writing anything.
 

@@ -85,6 +85,18 @@ if [ -f "$BINARIES_DIR/Image.gz" ]; then
 		done
 		printf '\n  ]\n}\n'
 	} > "$MANIFEST"
+	# Signed if D200_SIGNING_KEY holds an Ed25519 private key (PEM): the
+	# signature covers manifest.json, and through its hashes the images
+	SIG=
+	rm -f "$BINARIES_DIR/manifest.sig"
+	if [ -n "$D200_SIGNING_KEY" ]; then
+		KEY=$(mktemp)
+		printf '%s\n' "$D200_SIGNING_KEY" > "$KEY"
+		"$HOST_DIR/bin/openssl" pkeyutl -sign -rawin -inkey "$KEY" -in "$MANIFEST" \
+			-out "$BINARIES_DIR/manifest.sig"
+		rm -f "$KEY"
+		SIG=manifest.sig
+	fi
 	tar -C "$BINARIES_DIR" --owner=0 --group=0 --format=ustar -cf "$BINARIES_DIR/update.tar" \
-		manifest.json idbloader.img u-boot.itb kernel.itb rootfs.ubifs
+		manifest.json $SIG idbloader.img u-boot.itb kernel.itb rootfs.ubifs
 fi

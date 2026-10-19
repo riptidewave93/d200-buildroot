@@ -31,6 +31,8 @@ You need Docker, `make` and `git`. The build runs in a Debian container (`depend
 make build                # release image
 make build FLAVOR=debug   # debug image
 ```
+Update bundles are signed if `D200_SIGNING_KEY` holds a signing key ([ota.md](docs/ota.md#signing)); unsigned ones
+install too.
 
 | Flavour | Differences |
 |---|---|
