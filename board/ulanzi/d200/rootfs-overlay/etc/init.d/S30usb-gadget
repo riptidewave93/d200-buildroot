@@ -76,7 +76,8 @@ add_function() {
 		mkdir $f
 		echo 1 > $f/lun.0/removable
 		echo 1 > $f/lun.0/ro
-		echo "Ulanzi  D200 Stream Deck0100" > $f/lun.0/inquiry_string
+		# vendor (8 chars), product (16), revision (4)
+		echo "Ulanzi  D200 Deck       0100" > $f/lun.0/inquiry_string
 		echo $USB_DRIVE > $f/lun.0/file
 		;;
 	*)
