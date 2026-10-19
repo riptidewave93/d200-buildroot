@@ -4,7 +4,7 @@
 
 | Item | Where |
 |---|---|
-| Test waking the PC with a key (kernel patch 0014, deckd writing `srp` when a key report times out), on Linux and Windows. On hold: with wakeup enabled on the test PC's root hub (`usb1`, shared with Bluetooth, a mic and a fan controller), the PC won't sleep (`hcd_pci_suspend returns -16`). Next: disable wakeup on the D200 only to see whether it or another device blocks it, or try a port on another controller | both |
+| Test waking the PC with a key (kernel patch 0014, deckd writing `srp` when a key report times out), on Linux and Windows. On the PC tested so far, enabling wakeup on the root hub the D200 is on kept the PC from sleeping (`hcd_pci_suspend returns -16`); try a port on another USB controller, or find which device on that hub blocks it | both |
 
 ## Later
 
