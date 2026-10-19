@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Mon, 19 Oct 2026 09:19:48 -0500
+Subject: [PATCH] usb: dwc2: gadget: leave L2 on resume without clock gating
+
+With power_down NONE and no_clock_gating set (as on Rockchip), the
+wakeup interrupt handler finds the device in L2 but neither the partial
+power down nor the clock gating exit applies, so lx_state stays L2.
+Every request queued after the host resumes the bus then fails with
+-EAGAIN: the GET_STATUS reply is dropped ("dwc2_hsotg_send_reply:
+cannot queue req") and the host resets the device.
+
+Move to L0 and call the gadget's resume callback in that case.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ drivers/usb/dwc2/core_intr.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/usb/dwc2/core_intr.c b/drivers/usb/dwc2/core_intr.c
+index 7d3e64180..a123fb2c6 100644
+--- a/drivers/usb/dwc2/core_intr.c
++++ b/drivers/usb/dwc2/core_intr.c
+@@ -448,6 +448,12 @@ static void dwc2_handle_wakeup_detected_intr(struct dwc2_hsotg *hsotg)
+ 			    DWC2_POWER_DOWN_PARAM_NONE && hsotg->bus_suspended &&
+ 			    !hsotg->params.no_clock_gating)
+ 				dwc2_gadget_exit_clock_gating(hsotg, 0);
++
++			/* No power saving to exit: just resume */
++			if (hsotg->lx_state == DWC2_L2) {
++				hsotg->lx_state = DWC2_L0;
++				call_gadget(hsotg, resume);
++			}
+ 		} else {
+ 			/* Change to L0 state */
+ 			hsotg->lx_state = DWC2_L0;
