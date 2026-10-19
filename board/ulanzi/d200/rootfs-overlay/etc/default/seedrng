@@ -1,0 +1,2 @@
+# Keep the random seed on /data (the root is read-only)
+SEEDRNG_ARGS="--seed-dir=/data/seedrng"

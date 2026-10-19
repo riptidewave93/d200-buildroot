@@ -61,6 +61,8 @@ BR2_TARGET_GENERIC_HOSTNAME="d200"
 BR2_TARGET_GENERIC_ISSUE="Ulanzi D200"
 # BR2_TARGET_GENERIC_GETTY is not set
 # BR2_PACKAGE_IFUPDOWN_SCRIPTS is not set
+# Read-only root (A/B slots); settings and the incoming update live on /data
+# BR2_TARGET_GENERIC_REMOUNT_ROOTFS_RW is not set
 # fw_printenv/fw_setenv: the updater switches slots through the U-Boot env
 BR2_PACKAGE_LIBUBOOTENV=y
 BR2_PACKAGE_BUSYBOX_WATCHDOG=y
@@ -82,6 +84,7 @@ BR2_TARGET_ROOTFS_UBIFS=y
 BR2_TARGET_ROOTFS_UBIFS_LEBSIZE=0x1f000
 BR2_TARGET_ROOTFS_UBIFS_MINIOSIZE=0x800
 BR2_TARGET_ROOTFS_UBIFS_MAXLEBCNT=2048
-# Free space fixup on first mount: raw flashers (rkdeveloptool) write the image's
-# empty 0xff pages, and NAND pages can't be programmed twice
+# Free space fixup on the first read-write mount: raw flashers (rkdeveloptool)
+# write the image's empty 0xff pages, and NAND pages can't be programmed twice.
+# The root is mounted read-only, so this only matters for a manual remount.
 BR2_TARGET_ROOTFS_UBIFS_OPTS="-F"

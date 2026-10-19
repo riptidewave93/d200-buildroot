@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# /data: the writable UBIFS volume "data" (the root is read-only). The kernel
+# formats it on the first mount; if it won't mount, it is emptied and formatted
+# again. /data/update holds an incoming update and is emptied at every boot.
+#
+
+DEV=ubi0:data
+VOL=/dev/ubi0_6
+# LZO, the compressor every kernel here has, so an older slot can mount it
+OPTS=compr=lzo
+
+case "$1" in
+	start)
+		printf "Mounting /data: "
+		if ! mount -t ubifs -o $OPTS "$DEV" /data 2>/dev/null; then
+			printf "unusable, formatting: "
+			echo "S00data: /data didn't mount, formatting it" > /dev/kmsg
+			ubiupdatevol -t "$VOL" && mount -t ubifs -o $OPTS "$DEV" /data ||
+				{ echo "FAIL"; exit 1; }
+		fi
+		rm -rf /data/update
+		mkdir -p /data/update
+		# debug builds: the SSH host key (/etc/dropbear links here)
+		[ -x /usr/sbin/dropbear ] && mkdir -p /data/dropbear
+		echo "OK";;
+	stop|restart|reload)
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart|reload}"
+		exit 1
+esac

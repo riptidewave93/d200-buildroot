@@ -3,3 +3,5 @@ CONFIG_UDHCPD=y
 # No cron jobs on the device
 # CONFIG_CROND is not set
 # CONFIG_CRONTAB is not set
+# ubiupdatevol: S00data empties a /data volume that won't mount
+CONFIG_UBIUPDATEVOL=y
