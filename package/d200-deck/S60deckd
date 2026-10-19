@@ -1,20 +1,51 @@
 #!/bin/sh
 #
 # deckd: runs the key app (deckd keys) and the update page (deckd update),
-# restarting either one when it exits; this script restarts deckd. Logs go to
-# syslog.
+# restarting either one when it exits; this script restarts deckd, also when
+# it hangs. Logs go to syslog.
 #
 
 PIDFILE=/var/run/deckd.pid
+# deckd rewrites it at least every 10 s with new content (a heartbeat)
+ALIVE=/run/deckd.alive
+HUNG=60
+
+# Run deckd until it exits. Kill it if its heartbeat stops for HUNG seconds;
+# without a heartbeat file (an older deckd), only its exit counts.
+run() {
+	rm -f $ALIVE
+	sh -c 'set -o pipefail; /usr/bin/deckd 2>&1 | logger -t deckd' &
+	job=$!
+	last=
+	same=0
+	while kill -0 $job 2>/dev/null; do
+		sleep 1
+		beat=
+		read -r beat < $ALIVE 2>/dev/null
+		if [ -n "$beat" ] && [ "$beat" = "$last" ]; then
+			same=$((same + 1))
+		else
+			same=0
+		fi
+		last=$beat
+		if [ $same -ge $HUNG ]; then
+			logger -t deckd "no heartbeat for ${HUNG}s: killing it"
+			killall deckd 2>/dev/null
+			sleep 5
+			killall -9 deckd 2>/dev/null
+			same=0
+		fi
+	done
+	wait $job
+}
 
 # Restart deckd whenever it exits: after 1 s, doubling up to 30 s while it
 # keeps dying within 10 s of starting.
 supervise() {
-	set -o pipefail
 	delay=1
 	while :; do
 		started=$(date +%s)
-		/usr/bin/deckd 2>&1 | logger -t deckd
+		run
 		status=$?
 		[ $(($(date +%s) - started)) -ge 10 ] && delay=1
 		logger -t deckd "exited with status $status, restarting in ${delay}s"
@@ -34,7 +65,12 @@ stop() {
 	printf "Stopping deckd: "
 	start-stop-daemon -K -q -p $PIDFILE
 	killall deckd 2>/dev/null
-	# the display stays busy until deckd has exited
+	# the display stays busy until deckd has exited; a hung one is killed
+	for i in $(seq 50); do
+		pidof deckd >/dev/null || break
+		sleep 0.1
+	done
+	killall -9 deckd 2>/dev/null
 	while pidof deckd >/dev/null; do sleep 0.1; done
 	rm -f $PIDFILE
 	echo "OK"

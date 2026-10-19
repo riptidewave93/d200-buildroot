@@ -53,7 +53,7 @@ builds have neither. Services:
 | `S30usb-gadget` | USB functions; USB Ethernet addresses, DHCP server (udhcpd) and IPv6 router advertisements (radvd); the hostname `d200-<serial>`. `apply` applies the USB drive setting ([USB](#usb)) |
 | `S50dropbear` | Debug builds only. SSH server on USB Ethernet (the only network); root without a password. Includes SFTP, so `scp`/`sftp` work |
 | `S50mdnsd` | mDNS on USB Ethernet: answers for `d200-<serial>.local` and advertises the web server (`_http._tcp`), plus SSH in debug builds |
-| `S60deckd` | `deckd` ([d200-deck](https://github.com/riptidewave93/d200-deck), packaged in `package/d200-deck`): the key app and the update page on port 80 ([update.md](update.md)), each restarted when it exits. Its config and update state are in `/data/deckd` |
+| `S60deckd` | `deckd` ([d200-deck](https://github.com/riptidewave93/d200-deck), packaged in `package/d200-deck`): the key app and the update page on port 80 ([update.md](update.md)), each restarted when it exits. `deckd` itself is restarted when it exits or hangs: when its heartbeat, `/run/deckd.alive`, doesn't change for 60 s. Its config and update state are in `/data/deckd` |
 | syslogd, klogd | BusyBox defaults. Logs go to `/var/log/messages`, in RAM (`/var/log` is `/tmp`), about 400 KB at most |
 
 Files added to Buildroot's default skeleton live in `board/ulanzi/d200/rootfs-overlay/`.
