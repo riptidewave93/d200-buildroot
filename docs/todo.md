@@ -5,12 +5,12 @@
 | Item | Where |
 |---|---|
 | Test the PC sleep fix (kernel patch 0013): sleep and wake the PC; the D200 must not be reset, and its log must not show `dwc2_hsotg_send_reply: cannot queue req` | d200-buildroot |
+| Test waking the PC with a key (kernel patch 0014, deckd writing `srp` on `EAGAIN`), on Linux and Windows | both |
 
 ## Later
 
 | Item | Notes |
 |---|---|
-| Wake the PC from sleep | dwc2 has no gadget remote wakeup (`.wakeup` op): patch it, set `bmAttributes` to `0xa0`, and have deckd trigger a wakeup (UDC `srp`) when a key is pressed while the bus is suspended. The PC must allow the device to wake it |
 | USB Ethernet address override | A device setting to replace the per-device `198.18.0.0/15` `/30`, for PCs where it clashes |
 | Own USB VID:PID | e.g. pid.codes; `1d6b:0104` is the kernel's shared test ID |
 | Hung deckd | A heartbeat, so a hung deckd is restarted and not only a crashed one |

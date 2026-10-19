@@ -167,7 +167,7 @@ start() {
 	mkdir $G && cd $G || { echo "FAIL"; return 1; }
 	echo 0x1d6b > idVendor		# Linux Foundation
 	echo 0x0104 > idProduct		# Multifunction Composite Gadget
-	echo 0x0101 > bcdDevice		# USB descriptor layout version
+	echo 0x0102 > bcdDevice		# USB descriptor layout version
 	echo 0x0200 > bcdUSB
 	# composite device with interface association descriptors
 	echo 0xef > bDeviceClass
@@ -181,6 +181,7 @@ start() {
 	mkdir configs/c.1 configs/c.1/strings/0x409
 	echo D200 > configs/c.1/strings/0x409/configuration
 	echo 500 > configs/c.1/MaxPower
+	echo 0xa0 > configs/c.1/bmAttributes	# bus powered, remote wakeup
 	# Microsoft OS descriptors, for the WINNCM compatible ID
 	echo 1 > os_desc/use
 	echo 0xcd > os_desc/b_vendor_code

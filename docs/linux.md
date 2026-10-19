@@ -19,8 +19,8 @@ The kernel has slot A's line built in, for when U-Boot passes none.
 
 - Patches: `board/ulanzi/d200/patches/linux/7.2.11/`: RK3308 VOP support, a generic `rockchip,cmd-panel` panel
   driver, RK3308B-S TSADC support, the RK3308 VOP node, the RK3308B-S SoC dtsi (OPPs, TSADC) and the D200 device
-  tree (the same DT files U-Boot uses, [u-boot.md](u-boot.md#patches)), and a DWC2 fix so the gadget survives the
-  PC sleeping.
+  tree (the same DT files U-Boot uses, [u-boot.md](u-boot.md#patches)), a DWC2 fix so the gadget survives the
+  PC sleeping, and DWC2 remote wakeup so a key press can wake the PC.
 - Config: `board/ulanzi/d200/linux.config`, started from `allnoconfig`. Everything is built in, no modules:
   - SoC: clocks, pinctrl, GPIO, UART, watchdog;
   - storage: SPI NAND, UBI, UBIFS (LZO only; the rootfs is built with LZO);
@@ -91,6 +91,10 @@ is on. `deckd` writes the file and runs `/etc/init.d/S30usb-gadget apply`, which
 the setting changed. Then the PC sees the D200 unplugged and plugged back in, `/dev/hidg0` and `/dev/hidg1` are
 recreated (reopen them), and `usb0` keeps its addresses. The file holds `KEY=value` lines; keep the ones you don't
 know when rewriting it.
+
+**Remote wakeup:** the configuration has the remote wakeup bit (`bmAttributes` `0xa0`). While the PC has the bus
+suspended (asleep, or the device selectively suspended), writes to `/dev/hidg0` fail with `EAGAIN`; writing `1` to
+`/sys/class/udc/*/srp` signals resume if the PC allowed the D200 to wake it. `deckd` does that on a key press.
 
 **USB Ethernet:** the D200 is `d200-<serial>.local` over mDNS, where `<serial>` is its USB serial number (the CPU
 serial, lowercase); debug builds: `ssh root@d200-<serial>.local`. Each D200 has its own addresses, derived from the

@@ -1,0 +1,80 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Mon, 19 Oct 2026 16:07:19 -0500
+Subject: [PATCH] usb: dwc2: gadget: add remote wakeup
+
+The gadget ops have no .wakeup, so usb_gadget_wakeup() (the UDC's srp
+attribute) can't wake a suspended host, e.g. from a key press on a HID
+gadget.
+
+Add it for controllers without partial power down or hibernation: drive
+resume signalling for 10 ms if the host enabled remote wakeup, leaving
+clock gating first if it was entered, then move to L0 and call the
+gadget's resume callback.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ drivers/usb/dwc2/gadget.c | 43 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 43 insertions(+)
+
+diff --git a/drivers/usb/dwc2/gadget.c b/drivers/usb/dwc2/gadget.c
+index 102169b40..4584441e1 100644
+--- a/drivers/usb/dwc2/gadget.c
++++ b/drivers/usb/dwc2/gadget.c
+@@ -4771,6 +4771,48 @@ static int dwc2_hsotg_vbus_draw(struct usb_gadget *gadget, unsigned int mA)
+ 	return usb_phy_set_power(hsotg->uphy, mA);
+ }
+ 
++/**
++ * dwc2_hsotg_wakeup - signal remote wakeup
++ * @gadget: The usb gadget state
++ *
++ * Drive resume signalling on a suspended bus, if the host enabled remote
++ * wakeup. Only without partial power down or hibernation.
++ */
++static int dwc2_hsotg_wakeup(struct usb_gadget *gadget)
++{
++	struct dwc2_hsotg *hsotg = to_hsotg(gadget);
++	unsigned long flags;
++
++	spin_lock_irqsave(&hsotg->lock, flags);
++	if (hsotg->lx_state != DWC2_L2 || !hsotg->remote_wakeup_allowed) {
++		spin_unlock_irqrestore(&hsotg->lock, flags);
++		return -EINVAL;
++	}
++	if (hsotg->params.power_down != DWC2_POWER_DOWN_PARAM_NONE) {
++		spin_unlock_irqrestore(&hsotg->lock, flags);
++		return -EOPNOTSUPP;
++	}
++
++	if (hsotg->bus_suspended && !hsotg->params.no_clock_gating)
++		dwc2_gadget_exit_clock_gating(hsotg, 1);
++	else
++		dwc2_set_bit(hsotg, DCTL, DCTL_RMTWKUPSIG);
++	spin_unlock_irqrestore(&hsotg->lock, flags);
++
++	/* 1 to 15 ms of resume signalling (USB 2.0, 7.1.7.7) */
++	mdelay(10);
++
++	spin_lock_irqsave(&hsotg->lock, flags);
++	dwc2_clear_bit(hsotg, DCTL, DCTL_RMTWKUPSIG);
++	if (hsotg->lx_state == DWC2_L2) {
++		hsotg->lx_state = DWC2_L0;
++		call_gadget(hsotg, resume);
++	}
++	spin_unlock_irqrestore(&hsotg->lock, flags);
++
++	return 0;
++}
++
+ static void dwc2_gadget_set_speed(struct usb_gadget *g, enum usb_device_speed speed)
+ {
+ 	struct dwc2_hsotg *hsotg = to_hsotg(g);
+@@ -4798,6 +4840,7 @@ static const struct usb_gadget_ops dwc2_hsotg_gadget_ops = {
+ 	.set_selfpowered	= dwc2_hsotg_set_selfpowered,
+ 	.udc_start		= dwc2_hsotg_udc_start,
+ 	.udc_stop		= dwc2_hsotg_udc_stop,
++	.wakeup			= dwc2_hsotg_wakeup,
+ 	.pullup                 = dwc2_hsotg_pullup,
+ 	.udc_set_speed		= dwc2_gadget_set_speed,
+ 	.vbus_session		= dwc2_hsotg_vbus_session,
