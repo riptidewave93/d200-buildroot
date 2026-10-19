@@ -50,7 +50,7 @@ builds have neither. Services:
 | `S00data` | Mounts the UBI volume `data` at `/data` (formats it if it doesn't mount), and empties `/data/update` |
 | `S10loopback` | Brings up `lo` (`127.0.0.1`, `::1`); there are no ifupdown network scripts |
 | `S15watchdog` | Feeds `/dev/watchdog`. U-Boot starts it with a 60 s timeout, so a hung system resets |
-| `S30usb-gadget` | USB functions; USB Ethernet addresses, DHCP server (udhcpd) and IPv6 router advertisements (radvd); the hostname `d200-<serial>` |
+| `S30usb-gadget` | USB functions; USB Ethernet addresses, DHCP server (udhcpd) and IPv6 router advertisements (radvd); the hostname `d200-<serial>`. `apply` applies the USB drive setting ([USB](#usb)) |
 | `S50dropbear` | Debug builds only. SSH server on USB Ethernet (the only network); root without a password. Includes SFTP, so `scp`/`sftp` work |
 | `S50mdnsd` | mDNS on USB Ethernet: answers for `d200-<serial>.local` and advertises the web server (`_http._tcp`), plus SSH in debug builds |
 | `S60deckd` | `deckd` ([d200-deck](https://github.com/riptidewave93/d200-deck), packaged in `package/d200-deck`): the key app and the update page on port 80 ([update.md](update.md)), each restarted when it exits. Its config and update state are in `/data/deckd` |
@@ -59,9 +59,9 @@ builds have neither. Services:
 Files added to Buildroot's default skeleton live in `board/ulanzi/d200/rootfs-overlay/`.
 
 The root filesystem is read-only. Everything kept across boots lives in `/data` (UBIFS, 100 MiB): the key app's
-config, the random seed (`/data/seedrng`), the SSH host key (debug builds, `/etc/dropbear` links to
-`/data/dropbear`), and an incoming update (`/data/update`). The U-Boot env (slot and update state) is read and
-written with `fw_printenv` / `fw_setenv`.
+config, the USB drive setting (`/data/usb-gadget.conf`), the random seed (`/data/seedrng`), the SSH host key (debug
+builds, `/etc/dropbear` links to `/data/dropbear`), and an incoming update (`/data/update`). The U-Boot env (slot and
+update state) is read and written with `fw_printenv` / `fw_setenv`.
 
 **Flash writes** are kept rare to spare the SPI NAND. Logs, leases and PID files live in RAM (`/tmp`, `/run`), and
 UBIFS doesn't update access times (`UBIFS_ATIME_SUPPORT` is off), so reading files writes nothing. What does write:
@@ -85,6 +85,12 @@ Functions are set in `/etc/default/usb-gadget`:
 
 The order is the interface order, and it is fixed: always-on functions first, the drive last, so turning the drive off
 renumbers nothing. `bcdDevice` is the USB layout version.
+
+**USB drive setting:** `drive=0` in `/data/usb-gadget.conf` turns the drive off; with anything else, or no file, it
+is on. `deckd` writes the file and runs `/etc/init.d/S30usb-gadget apply`, which changes the running gadget only if
+the setting changed. Then the PC sees the D200 unplugged and plugged back in, `/dev/hidg0` and `/dev/hidg1` are
+recreated (reopen them), and `usb0` keeps its addresses. The file holds `KEY=value` lines; keep the ones you don't
+know when rewriting it.
 
 **USB Ethernet:** the D200 is `d200-<serial>.local` over mDNS, where `<serial>` is its USB serial number (the CPU
 serial, lowercase); debug builds: `ssh root@d200-<serial>.local`. Each D200 has its own addresses, derived from the

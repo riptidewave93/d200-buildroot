@@ -4,6 +4,10 @@
 # /etc/default/usb-gadget, plus USB Ethernet: the deck's addresses, DHCP for
 # the PC and IPv6 router advertisements.
 #
+# Settings in /data/usb-gadget.conf (KEY=value lines, written by deckd):
+#   drive=0   no USB drive (msc); anything else, or no file, keeps it
+# "apply" makes the running gadget match them.
+#
 
 USB_FUNCTIONS="hid raw ncm msc"
 [ -r /etc/default/usb-gadget ] && . /etc/default/usb-gadget
@@ -19,6 +23,7 @@ UDHCPD_PID=/var/run/udhcpd-usb.pid
 RADVD_CONF=/tmp/radvd-usb.conf
 RADVD_PID=/var/run/radvd-usb.pid
 USB_DRIVE=/usr/share/d200/usb-drive.img
+SETTINGS=/data/usb-gadget.conf
 
 # CPU serial, passed on by U-Boot
 serial() {
@@ -29,6 +34,10 @@ serial() {
 # stable, locally administered MAC address from the serial; $1 = first byte
 mac() {
 	serial | md5sum | sed "s/^\(..\)\(..\)\(..\)\(..\)\(..\).*/$1:\1:\2:\3:\4:\5/"
+}
+
+drive_wanted() {
+	[ "$(sed -n 's/^drive=//p' $SETTINGS 2>/dev/null | tail -n 1)" != 0 ]
 }
 
 add_function() {
@@ -179,12 +188,34 @@ start() {
 	ln -s configs/c.1 os_desc/
 
 	for f in $USB_FUNCTIONS; do
+		[ "$f" = msc ] && ! drive_wanted && continue
 		add_function "$f"
 	done
 
 	ls /sys/class/udc | head -n 1 > UDC || { echo "FAIL"; return 1; }
 	[ -d functions/ncm.usb0 ] && start_network
 	echo "OK"
+}
+
+# Changing the functions re-binds the gadget: the PC sees the D200 unplugged and
+# plugged back in, and /dev/hidg* are recreated. usb0 keeps its addresses.
+apply() {
+	[ -d $G ] || { start; return; }
+	case " $USB_FUNCTIONS " in *" msc "*) ;; *) return 0 ;; esac
+	have=0; [ -e $G/configs/c.1/mass_storage.usb0 ] && have=1
+	want=0; drive_wanted && want=1
+	[ $have = $want ] && return 0
+
+	cd $G || return 1
+	echo "" > UDC || return 1
+	if [ $want = 1 ]; then
+		add_function msc
+	else
+		rm configs/c.1/mass_storage.usb0 && rmdir functions/mass_storage.usb0
+	fi
+	ret=$?
+	ls /sys/class/udc | head -n 1 > UDC || return 1
+	return $ret
 }
 
 stop() {
@@ -206,12 +237,12 @@ stop() {
 }
 
 case "$1" in
-	start|stop)
+	start|stop|apply)
 		"$1";;
 	restart|reload)
 		stop
 		start;;
 	*)
-		echo "Usage: $0 {start|stop|restart|reload}"
+		echo "Usage: $0 {start|stop|restart|reload|apply}"
 		exit 1
 esac
