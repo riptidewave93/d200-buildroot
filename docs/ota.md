@@ -76,6 +76,8 @@ An uncompressed tar, `d200-<version>-<flavour>-update.tar` in a build's `output/
   - bytes `0x20000`–`0x3ffff` are the code block (TPL + SPL);
   - everything else is `0xff`.
 - Every bundle carries all four images. A bootloader image identical to what is on the flash is not rewritten.
+  U-Boot builds are reproducible (its build date is the last commit that changed it), so a build without U-Boot
+  changes carries the same bootloader images.
 - A signature (`manifest.sig`) is reserved for a later format; format 1 is unsigned.
 
 ## Updating
