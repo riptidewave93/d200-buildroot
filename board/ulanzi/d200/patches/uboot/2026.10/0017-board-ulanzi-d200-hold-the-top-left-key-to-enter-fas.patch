@@ -1,0 +1,257 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 16:08:00 -0500
+Subject: [PATCH] board: ulanzi: d200: hold the top-left key to enter fastboot
+
+Offer the top-left front key as a fastboot key during boot: for 1.5 s
+after the boot screen comes up, holding it shows a fastboot screen and
+runs "fastboot usb 0". When fastboot exits, the boot screen is restored
+and the boot carries on. Otherwise the key's label is removed once the
+time is up.
+
+The label ("Hold for Fastboot") is part of the built-in boot logo, so
+it is only removed when that logo is shown, not over a user splash.
+
+The fastboot screen is a BMP built in when board/ulanzi/d200/
+d200_fastboot.bmp is present; without it the screen is just cleared.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ board/ulanzi/d200/Makefile |   6 ++
+ board/ulanzi/d200/d200.c   | 142 +++++++++++++++++++++++++++++++------
+ 2 files changed, 128 insertions(+), 20 deletions(-)
+
+diff --git a/board/ulanzi/d200/Makefile b/board/ulanzi/d200/Makefile
+index 85fccc03..cc6881ef 100644
+--- a/board/ulanzi/d200/Makefile
++++ b/board/ulanzi/d200/Makefile
+@@ -4,4 +4,10 @@ ifdef CONFIG_XPL_BUILD
+ obj-$(CONFIG_SPL_BOARD_INIT)	+= spl.o
+ else
+ obj-y	+= d200.o
++
++# Optional built-in fastboot screen, added to the tree at build time
++ifneq ($(wildcard $(srctree)/$(src)/d200_fastboot.bmp),)
++obj-y	+= d200_fastboot.bmp.o
++ccflags-y += -DD200_HAVE_FASTBOOT_BMP
++endif
+ endif
+diff --git a/board/ulanzi/d200/d200.c b/board/ulanzi/d200/d200.c
+index 54a728b9..5ea32ca5 100644
+--- a/board/ulanzi/d200/d200.c
++++ b/board/ulanzi/d200/d200.c
+@@ -3,13 +3,17 @@
+  * Ulanzi D200
+  */
+ 
++#include <command.h>
+ #include <dm.h>
+ #include <log.h>
+ #include <malloc.h>
+ #include <mapmem.h>
+ #include <splash.h>
++#include <time.h>
+ #include <video.h>
++#include <linux/delay.h>
+ #include <linux/sizes.h>
++#include "keys.h"
+ 
+ #if IS_ENABLED(CONFIG_CMD_UBI)
+ #include <ubi_uboot.h>
+@@ -17,36 +21,63 @@
+ #define D200_SPLASH_UBI_PART	"ubi"
+ #define D200_SPLASH_VOLUME	"splash"
+ #define D200_SPLASH_MAX_SIZE	SZ_8M
++#endif
++
++/* Top-left key window in the landscape 1280x720 framebuffer */
++#define D200_KEY_TL_X0		17
++#define D200_KEY_TL_X1		212
++#define D200_KEY_TL_Y0		0
++#define D200_KEY_TL_Y1		195
++
++/* How long the top-left key is offered as "Hold for Fastboot" at boot */
++#define D200_FASTBOOT_KEY_MS	1500
++
++/* Built-in fastboot screen */
++#ifdef D200_HAVE_FASTBOOT_BMP
++extern u8 __splash_d200_fastboot_begin[];
++#define D200_FASTBOOT_BMP	__splash_d200_fastboot_begin
++#else
++#define D200_FASTBOOT_BMP	NULL
++#endif
+ 
++static void d200_show_bmp(struct udevice *dev, void *bmp)
++{
++	video_clear(dev);
++	if (bmp)
++		video_bmp_display(dev, map_to_sysmem(bmp), -4, 4, true);
++	video_sync(dev, true);
++}
++
++#if IS_ENABLED(CONFIG_CMD_UBI)
+ /*
+  * Optional user splash: if the "ubi" partition holds a UBI volume named
+  * "splash" containing a BMP, show it centred on the (landscape) screen
+- * instead of the built-in logo. Anything missing or invalid keeps the
+- * built-in logo.
++ * instead of the built-in logo. Returns true if it is shown.
+  */
+-static void d200_show_ubi_splash(struct udevice *dev)
++static bool d200_show_ubi_splash(struct udevice *dev)
+ {
+ 	struct ubi_volume *vol;
++	bool shown = false;
+ 	size_t size;
+ 	u8 *buf;
+ 	int ret;
+ 
+ 	if (ubi_part(D200_SPLASH_UBI_PART, NULL))
+-		return;
++		return false;
+ 
+ 	vol = ubi_find_volume(D200_SPLASH_VOLUME);
+ 	if (!vol)
+-		return;
++		return false;
+ 
+ 	size = vol->used_bytes;
+ 	if (size < 54 || size > D200_SPLASH_MAX_SIZE) {
+ 		log_warning("splash: volume size %zu not supported\n", size);
+-		return;
++		return false;
+ 	}
+ 
+ 	buf = malloc(size);
+ 	if (!buf)
+-		return;
++		return false;
+ 
+ 	ret = ubi_volume_read(D200_SPLASH_VOLUME, buf, 0, size);
+ 	if (ret || buf[0] != 'B' || buf[1] != 'M') {
+@@ -57,41 +88,112 @@ static void d200_show_ubi_splash(struct udevice *dev)
+ 	video_clear(dev);
+ 	ret = video_bmp_display(dev, map_to_sysmem(buf), BMP_ALIGN_CENTER,
+ 				BMP_ALIGN_CENTER, true);
+-	if (ret) {
++	if (ret)
+ 		log_warning("splash: cannot display BMP (%d), using built-in logo\n",
+ 			    ret);
+-		video_clear(dev);
+-		if (IS_ENABLED(CONFIG_VIDEO_LOGO))
+-			video_bmp_display(dev,
+-					  map_to_sysmem(video_get_u_boot_logo()),
+-					  -4, 4, true);
+-	}
+-	video_sync(dev, true);
++	else
++		shown = true;
+ 
+ out:
+ 	free(buf);
++	return shown;
+ }
+ #else
+-static inline void d200_show_ubi_splash(struct udevice *dev) {}
++static inline bool d200_show_ubi_splash(struct udevice *dev)
++{
++	return false;
++}
+ #endif
+ 
++/* Boot screen: the user splash if there is one, else the built-in logo */
++static bool d200_show_boot_screen(struct udevice *dev)
++{
++	if (d200_show_ubi_splash(dev)) {
++		video_sync(dev, true);
++		return true;
++	}
++
++	d200_show_bmp(dev, IS_ENABLED(CONFIG_VIDEO_LOGO) ?
++		      video_get_u_boot_logo() : NULL);
++
++	return false;
++}
++
++/* Remove the "Hold for Fastboot" label of the built-in logo */
++static void d200_clear_fastboot_label(struct udevice *dev)
++{
++	struct video_priv *priv = dev_get_uclass_priv(dev);
++
++	video_fill_part(dev, D200_KEY_TL_X0, D200_KEY_TL_Y0, D200_KEY_TL_X1,
++			D200_KEY_TL_Y1, video_index_to_colour(priv, VID_BLACK));
++	video_sync(dev, true);
++}
++
++static bool d200_fastboot_key_held(void)
++{
++	if (!d200_keys_held(D200_KEY_COL_LEFT, D200_KEY_ROW_TOP))
++		return false;
++	mdelay(20);
++
++	return d200_keys_held(D200_KEY_COL_LEFT, D200_KEY_ROW_TOP);
++}
++
++/*
++ * "Hold for Fastboot": the built-in logo labels the top-left key. If it is
++ * held within D200_FASTBOOT_KEY_MS, show the fastboot screen and run
++ * fastboot on USB; once fastboot exits, restore the boot screen and carry
++ * on booting. Otherwise the label is removed.
++ */
++static void d200_fastboot_key(struct udevice *dev, bool user_splash)
++{
++	ulong start = get_timer(0);
++	bool held = false;
++
++	do {
++		if (d200_fastboot_key_held()) {
++			held = true;
++			break;
++		}
++		mdelay(10);
++	} while (get_timer(start) < D200_FASTBOOT_KEY_MS);
++
++	if (!held) {
++		if (dev && !user_splash)
++			d200_clear_fastboot_label(dev);
++		return;
++	}
++
++	printf("D200: fastboot key held, starting fastboot\n");
++	if (dev)
++		d200_show_bmp(dev, D200_FASTBOOT_BMP);
++
++	run_command("fastboot usb 0", 0);
++
++	if (dev && !d200_show_boot_screen(dev))
++		d200_clear_fastboot_label(dev);
++}
++
+ /*
+  * The console is on the UART only, so nothing would probe the display.
+- * Probe it here so the panel comes up and shows the boot logo (built-in,
+- * or the optional splash from UBI).
++ * Probe it here so the panel comes up and shows the boot screen, then
++ * offer the fastboot key.
+  */
+ int rk_board_late_init(void)
+ {
++	bool user_splash = false;
+ 	struct udevice *dev;
+ 	int ret;
+ 
+ 	ret = uclass_first_device_err(UCLASS_VIDEO, &dev);
+ 	if (ret) {
+ 		log_warning("display: probe failed: %d\n", ret);
+-		return 0;
++		dev = NULL;
++	} else {
++		user_splash = d200_show_boot_screen(dev);
+ 	}
+ 
+-	d200_show_ubi_splash(dev);
++	if (IS_ENABLED(CONFIG_USB_FUNCTION_FASTBOOT))
++		d200_fastboot_key(dev, user_splash);
+ 
+ 	return 0;
+ }

@@ -1,0 +1,27 @@
+config BR2_PACKAGE_D200_RKBIN
+	bool "d200-rkbin"
+	depends on BR2_aarch64
+	help
+	  Rockchip rkbin blobs (BL31, DDR init TPL) and the boot_merger tool,
+	  at a selectable rkbin commit. Buildroot's own rockchip-rkbin package
+	  pins an older rkbin and has no version override.
+
+	  https://github.com/rockchip-linux/rkbin
+
+if BR2_PACKAGE_D200_RKBIN
+
+config BR2_PACKAGE_D200_RKBIN_VERSION
+	string "rkbin git commit"
+	default "3e288fe814e059dd06833495f845cab04ac20a5c"
+	help
+	  Commit of https://github.com/rockchip-linux/rkbin to use.
+
+config BR2_PACKAGE_D200_RKBIN_TPL_FILENAME
+	string "TPL (DDR init) file path in rkbin"
+	default "bin/rk33/rk3308_ddr_589MHz_uart2_m1_v2.11.bin"
+
+config BR2_PACKAGE_D200_RKBIN_BL31_FILENAME
+	string "BL31 file path in rkbin"
+	default "bin/rk33/rk3308_bl31_v2.28.elf"
+
+endif

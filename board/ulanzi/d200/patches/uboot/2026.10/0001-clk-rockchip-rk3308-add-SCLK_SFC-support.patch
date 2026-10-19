@@ -1,0 +1,97 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 09:53:15 -0500
+Subject: [PATCH] clk: rockchip: rk3308: add SCLK_SFC support
+
+The SFC (serial flash controller) driver sets its clock rate at probe
+time, but the RK3308 clock driver did not handle SCLK_SFC, so probing
+failed with -ENOENT and SPI flash/NAND was unusable.
+
+Add get/set support for SCLK_SFC (CRU_CLKSEL_CON42: mux [15:14]
+dpll/vpll0/vpll1, divider [6:0]), with the rate derived from DPLL.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ drivers/clk/rockchip/clk_rk3308.c | 55 +++++++++++++++++++++++++++++++
+ 1 file changed, 55 insertions(+)
+
+diff --git a/drivers/clk/rockchip/clk_rk3308.c b/drivers/clk/rockchip/clk_rk3308.c
+index 97043b86..d8cff65d 100644
+--- a/drivers/clk/rockchip/clk_rk3308.c
++++ b/drivers/clk/rockchip/clk_rk3308.c
+@@ -353,6 +353,55 @@ static ulong rk3308_mmc_set_clk(struct clk *clk, ulong set_rate)
+ 	return rk3308_mmc_get_clk(clk);
+ }
+ 
++/* SCLK_SFC: CRU_CLKSEL_CON42, mux [15:14] = dpll/vpll0/vpll1, div [6:0] */
++#define SFC_CON_ID		42
++#define SFC_PLL_SHIFT		14
++#define SFC_PLL_MASK		(0x3 << SFC_PLL_SHIFT)
++#define SFC_DIV_SHIFT		0
++#define SFC_DIV_MASK		(0x7f << SFC_DIV_SHIFT)
++
++static ulong rk3308_sfc_get_clk(struct rk3308_clk_priv *priv)
++{
++	struct rk3308_cru *cru = priv->cru;
++	u32 con, div, sel;
++	ulong parent;
++
++	con = readl(&cru->clksel_con[SFC_CON_ID]);
++	div = (con & SFC_DIV_MASK) >> SFC_DIV_SHIFT;
++	sel = (con & SFC_PLL_MASK) >> SFC_PLL_SHIFT;
++	switch (sel) {
++	case 0:
++		parent = priv->dpll_hz;
++		break;
++	case 1:
++		parent = priv->vpll0_hz;
++		break;
++	case 2:
++		parent = priv->vpll1_hz;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	return DIV_TO_RATE(parent, div);
++}
++
++static ulong rk3308_sfc_set_clk(struct rk3308_clk_priv *priv, ulong hz)
++{
++	struct rk3308_cru *cru = priv->cru;
++	int div;
++
++	/* Source from DPLL */
++	div = DIV_ROUND_UP(priv->dpll_hz, hz);
++	if (div > 128)
++		div = 128;
++	rk_clrsetreg(&cru->clksel_con[SFC_CON_ID],
++		     SFC_PLL_MASK | SFC_DIV_MASK,
++		     0 << SFC_PLL_SHIFT | (div - 1) << SFC_DIV_SHIFT);
++
++	return rk3308_sfc_get_clk(priv);
++}
++
+ static ulong rk3308_saradc_get_clk(struct clk *clk)
+ {
+ 	struct rk3308_clk_priv *priv = dev_get_priv(clk->dev);
+@@ -978,6 +1027,9 @@ static ulong rk3308_clk_get_rate(struct clk *clk)
+ 	case DCLK_VOP:
+ 		rate = rk3308_vop_get_clk(clk);
+ 		break;
++	case SCLK_SFC:
++		rate = rk3308_sfc_get_clk(priv);
++		break;
+ 	case ACLK_BUS:
+ 	case HCLK_BUS:
+ 	case PCLK_BUS:
+@@ -1060,6 +1112,9 @@ static ulong rk3308_clk_set_rate(struct clk *clk, ulong rate)
+ 	case DCLK_VOP:
+ 		ret = rk3308_vop_set_clk(clk, rate);
+ 		break;
++	case SCLK_SFC:
++		ret = rk3308_sfc_set_clk(priv, rate);
++		break;
+ 	case ACLK_BUS:
+ 	case HCLK_BUS:
+ 	case PCLK_BUS:

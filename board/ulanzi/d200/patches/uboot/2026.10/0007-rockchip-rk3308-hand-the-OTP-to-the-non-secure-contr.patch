@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 15:44:02 -0500
+Subject: [PATCH] rockchip: rk3308: hand the OTP to the non-secure controller
+ on RK3308B-S
+
+The RK3308B-S has a different OTP controller than the RK3308 and
+RK3308B. Its OTP macro is shared between a secure and a non-secure
+controller, selected by bit 2 of SGRF_SOC_CON1. Unless that bit is
+cleared, the non-secure controller never leaves standby and every read
+returns 0xff.
+
+The SGRF is only writable from the secure world, so clear the bit in
+SPL when the GRF chip ID reports an RK3308B-S.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ arch/arm/mach-rockchip/rk3308/rk3308.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/arch/arm/mach-rockchip/rk3308/rk3308.c b/arch/arm/mach-rockchip/rk3308/rk3308.c
+index 165abea5..a0eb7c7e 100644
+--- a/arch/arm/mach-rockchip/rk3308/rk3308.c
++++ b/arch/arm/mach-rockchip/rk3308/rk3308.c
+@@ -128,6 +128,13 @@ int arch_cpu_init(void)
+ 	/* Set CRYPTO SDMMC EMMC NAND SFC USB master bus to be secure access */
+ 	rk_clrreg(&sgrf->con_secure0, 0x2b83);
+ 
++	/*
++	 * RK3308B-S: give the OTP to the non-secure OTP controller, otherwise
++	 * it never leaves standby and every read returns 0xff.
++	 */
++	if (readl(&grf->chip_id) == 0x3308c)
++		rk_clrreg(&sgrf->soc_con1, BIT(2));
++
+ 	/*
+ 	 * Enable plus options to use more pinctrl functions, including
+ 	 * GPIO2A2_PLUS, GPIO2A3_PLUS and I2C3_MULTI_SRC_PLUS.

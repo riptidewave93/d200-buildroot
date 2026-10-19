@@ -1,0 +1,444 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 10:08:55 -0500
+Subject: [PATCH] spl: add a minimal SPI NAND loader
+
+The SPI NAND framework (drivers/mtd/nand/spi) is not built for SPL, so
+SPL cannot load U-Boot from SPI NAND.
+
+Add a small reader built directly on spi-mem. It relies on the chip's
+on-die ECC, skips bad blocks using the factory bad block marker and
+loads a FIT or legacy image from a fixed, block aligned raw offset,
+with an optional redundant copy. It registers as the BOOT_DEVICE_NAND
+loader and finds the flash through a "spi-nand" compatible node.
+
+It also implements nand_spl_read_block(), the raw read hook used by the
+UBI SPL loader.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ common/spl/Kconfig        |  37 ++++
+ common/spl/Makefile       |   1 +
+ common/spl/spl_spi_nand.c | 353 ++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 391 insertions(+)
+ create mode 100644 common/spl/spl_spi_nand.c
+
+diff --git a/common/spl/Kconfig b/common/spl/Kconfig
+index 0618f42c..827e1bfc 100644
+--- a/common/spl/Kconfig
++++ b/common/spl/Kconfig
+@@ -979,6 +979,43 @@ config SPL_MUSB_NEW
+ 	  the drivers in drivers/usb/musb-new as part of an SPL build. The
+ 	  old drivers are in drivers/usb/musb.
+ 
++config SPL_SPI_NAND_LOAD
++	bool "Support loading from SPI NAND (minimal driver)"
++	depends on SPL_SPI && SPL_DM_SPI && SPI_MEM
++	help
++	  Enable a small SPI NAND reader for SPL, built directly on spi-mem.
++	  It uses the chip's on-die ECC, skips bad blocks and loads U-Boot
++	  (FIT or legacy image) from a fixed raw offset, with an optional
++	  redundant copy. It registers as the BOOT_DEVICE_NAND loader and
++	  needs a "spi-nand" compatible node under the SPI controller.
++
++if SPL_SPI_NAND_LOAD
++
++config SPL_SPI_NAND_PAGE_SIZE
++	int "SPI NAND page size"
++	default 2048
++
++config SPL_SPI_NAND_BLOCK_SIZE
++	hex "SPI NAND erase block size"
++	default 0x20000
++
++config SPL_SPI_NAND_NUM_BLOCKS
++	int "Number of erase blocks"
++	default 2048
++
++config SPL_SPI_NAND_U_BOOT_OFFS
++	hex "Raw offset of U-Boot in SPI NAND"
++	default 0x100000
++	help
++	  Block aligned raw offset of the U-Boot image. Bad blocks from
++	  this offset on are skipped.
++
++config SPL_SPI_NAND_U_BOOT_OFFS_REDUND
++	hex "Raw offset of the redundant U-Boot copy (0 = none)"
++	default 0x0
++
++endif
++
+ config SPL_NAND_SUPPORT
+ 	bool "Support NAND flash"
+ 	select SPL_LOAD_BLOCK
+diff --git a/common/spl/Makefile b/common/spl/Makefile
+index 9c94e8f1..30da99c6 100644
+--- a/common/spl/Makefile
++++ b/common/spl/Makefile
+@@ -18,6 +18,7 @@ obj-$(CONFIG_$(PHASE_)XIP_SUPPORT) += spl_xip.o
+ obj-$(CONFIG_$(PHASE_)YMODEM_SUPPORT) += spl_ymodem.o
+ ifndef CONFIG_SPL_UBI
+ obj-$(CONFIG_$(PHASE_)NAND_SUPPORT) += spl_nand.o
++obj-$(CONFIG_$(PHASE_)SPI_NAND_LOAD) += spl_spi_nand.o
+ obj-$(CONFIG_$(PHASE_)ONENAND_SUPPORT) += spl_onenand.o
+ endif
+ obj-$(CONFIG_$(PHASE_)UBI) += spl_ubi.o
+diff --git a/common/spl/spl_spi_nand.c b/common/spl/spl_spi_nand.c
+new file mode 100644
+index 00000000..5184fdc4
+--- /dev/null
++++ b/common/spl/spl_spi_nand.c
+@@ -0,0 +1,353 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Minimal SPI NAND loader for SPL
++ *
++ * The full SPI NAND framework (drivers/mtd/nand/spi) is not available in
++ * SPL. This is a small reader built directly on spi-mem: it relies on the
++ * chip's on-die ECC, skips bad blocks (factory bad block marker in the
++ * first OOB byte of a block's first page) and loads an image (FIT or
++ * legacy) from a fixed, block aligned raw offset, falling back to an
++ * optional redundant copy.
++ *
++ * It also implements nand_spl_read_block(), the raw read hook used by the
++ * UBI SPL loader.
++ */
++
++#include <dm.h>
++#include <errno.h>
++#include <log.h>
++#include <nand.h>
++#include <spi.h>
++#include <spi-mem.h>
++#include <spl.h>
++#include <spl_load.h>
++#include <dm/ofnode.h>
++#include <linux/delay.h>
++#include <linux/kernel.h>
++
++#define SPINAND_OP_RESET		0xff
++#define SPINAND_OP_GET_FEATURE		0x0f
++#define SPINAND_OP_SET_FEATURE		0x1f
++#define SPINAND_OP_PAGE_READ		0x13
++#define SPINAND_OP_READ_FROM_CACHE	0x03
++
++#define SPINAND_REG_CFG			0xb0
++#define SPINAND_CFG_ECC_ENABLE		BIT(4)
++#define SPINAND_REG_STATUS		0xc0
++#define SPINAND_STATUS_BUSY		BIT(0)
++#define SPINAND_STATUS_ECC_MASK		GENMASK(5, 4)
++#define SPINAND_STATUS_ECC_UNCOR	(2 << 4)
++
++#define PAGE_SIZE_B	CONFIG_SPL_SPI_NAND_PAGE_SIZE
++#define BLOCK_SIZE_B	CONFIG_SPL_SPI_NAND_BLOCK_SIZE
++#define PAGES_PER_BLOCK	(BLOCK_SIZE_B / PAGE_SIZE_B)
++#define MAX_BLOCKS	CONFIG_SPL_SPI_NAND_NUM_BLOCKS
++
++static struct spi_slave *spinand;
++/* Lazily filled bad block cache: known[] = checked, bad[] = result */
++static u8 bb_known[DIV_ROUND_UP(MAX_BLOCKS, 8)];
++static u8 bb_bad[DIV_ROUND_UP(MAX_BLOCKS, 8)];
++
++static int spinand_get_feature(u8 reg, u8 *val)
++{
++	struct spi_mem_op op = SPI_MEM_OP(SPI_MEM_OP_CMD(SPINAND_OP_GET_FEATURE, 1),
++					  SPI_MEM_OP_ADDR(1, reg, 1),
++					  SPI_MEM_OP_NO_DUMMY,
++					  SPI_MEM_OP_DATA_IN(1, val, 1));
++
++	return spi_mem_exec_op(spinand, &op);
++}
++
++static int spinand_set_feature(u8 reg, u8 val)
++{
++	struct spi_mem_op op = SPI_MEM_OP(SPI_MEM_OP_CMD(SPINAND_OP_SET_FEATURE, 1),
++					  SPI_MEM_OP_ADDR(1, reg, 1),
++					  SPI_MEM_OP_NO_DUMMY,
++					  SPI_MEM_OP_DATA_OUT(1, &val, 1));
++
++	return spi_mem_exec_op(spinand, &op);
++}
++
++static int spinand_wait(u8 *status)
++{
++	ulong start = get_timer(0);
++	int ret;
++
++	do {
++		ret = spinand_get_feature(SPINAND_REG_STATUS, status);
++		if (ret)
++			return ret;
++		if (!(*status & SPINAND_STATUS_BUSY))
++			return 0;
++	} while (get_timer(start) < 100);
++
++	return -ETIMEDOUT;
++}
++
++/* Load one page into the chip's cache and check the on-die ECC result */
++static int spinand_load_page(u32 page)
++{
++	struct spi_mem_op op = SPI_MEM_OP(SPI_MEM_OP_CMD(SPINAND_OP_PAGE_READ, 1),
++					  SPI_MEM_OP_ADDR(3, page, 1),
++					  SPI_MEM_OP_NO_DUMMY,
++					  SPI_MEM_OP_NO_DATA);
++	u8 status;
++	int ret;
++
++	ret = spi_mem_exec_op(spinand, &op);
++	if (ret)
++		return ret;
++	ret = spinand_wait(&status);
++	if (ret)
++		return ret;
++	if ((status & SPINAND_STATUS_ECC_MASK) == SPINAND_STATUS_ECC_UNCOR)
++		return -EBADMSG;
++
++	return 0;
++}
++
++/* Read 'len' bytes from the cache, starting at column 'col' */
++static int spinand_read_cache(u32 col, u32 len, u8 *buf)
++{
++	while (len) {
++		struct spi_mem_op op =
++			SPI_MEM_OP(SPI_MEM_OP_CMD(SPINAND_OP_READ_FROM_CACHE, 1),
++				   SPI_MEM_OP_ADDR(2, col, 1),
++				   SPI_MEM_OP_DUMMY(1, 1),
++				   SPI_MEM_OP_DATA_IN(len, buf, 1));
++		int ret;
++
++		ret = spi_mem_adjust_op_size(spinand, &op);
++		if (ret)
++			return ret;
++		ret = spi_mem_exec_op(spinand, &op);
++		if (ret)
++			return ret;
++
++		col += op.data.nbytes;
++		buf += op.data.nbytes;
++		len -= op.data.nbytes;
++	}
++
++	return 0;
++}
++
++static int spinand_block_isbad(u32 block)
++{
++	u8 marker;
++	int ret;
++
++	if (block >= MAX_BLOCKS)
++		return 1;
++	if (bb_known[block / 8] & BIT(block % 8))
++		return !!(bb_bad[block / 8] & BIT(block % 8));
++
++	ret = spinand_load_page(block * PAGES_PER_BLOCK);
++	if (!ret || ret == -EBADMSG)
++		ret = spinand_read_cache(PAGE_SIZE_B, 1, &marker);
++	if (ret)
++		return 1;
++
++	bb_known[block / 8] |= BIT(block % 8);
++	if (marker != 0xff) {
++		bb_bad[block / 8] |= BIT(block % 8);
++		printf("SPI NAND: block %u is bad, skipping\n", block);
++		return 1;
++	}
++
++	return 0;
++}
++
++/* Read from a physical byte offset that does not cross a block boundary */
++static int spinand_read_in_block(u32 offs, u32 len, u8 *dst)
++{
++	while (len) {
++		u32 col = offs % PAGE_SIZE_B;
++		u32 chunk = min(len, PAGE_SIZE_B - col);
++		int ret;
++
++		ret = spinand_load_page(offs / PAGE_SIZE_B);
++		if (ret)
++			return ret;
++		ret = spinand_read_cache(col, chunk, dst);
++		if (ret)
++			return ret;
++
++		offs += chunk;
++		dst += chunk;
++		len -= chunk;
++	}
++
++	return 0;
++}
++
++/*
++ * Read 'len' bytes at logical offset 'rel' of a region that starts at the
++ * block aligned physical offset 'base'. Bad blocks inside the region are
++ * skipped, i.e. logical block n is the n-th good block from 'base'.
++ */
++static int spinand_read_skip_bad(u32 base, u32 rel, u32 len, u8 *dst)
++{
++	u32 block = base / BLOCK_SIZE_B;
++	u32 skip = rel / BLOCK_SIZE_B;
++	u32 boff = rel % BLOCK_SIZE_B;
++	int ret;
++
++	/* Find the physical block holding logical block 'skip' */
++	for (;;) {
++		if (block >= MAX_BLOCKS)
++			return -EIO;
++		if (!spinand_block_isbad(block)) {
++			if (!skip)
++				break;
++			skip--;
++		}
++		block++;
++	}
++
++	while (len) {
++		u32 chunk = min(len, BLOCK_SIZE_B - boff);
++
++		ret = spinand_read_in_block(block * BLOCK_SIZE_B + boff,
++					    chunk, dst);
++		if (ret)
++			return ret;
++
++		dst += chunk;
++		len -= chunk;
++		boff = 0;
++		if (len) {
++			do {
++				block++;
++				if (block >= MAX_BLOCKS)
++					return -EIO;
++			} while (spinand_block_isbad(block));
++		}
++	}
++
++	return 0;
++}
++
++static int spinand_spl_init(void)
++{
++	struct udevice *bus;
++	ofnode node;
++	u8 cfg;
++	int ret;
++
++	if (spinand)
++		return 0;
++
++	node = ofnode_by_compatible(ofnode_null(), "spi-nand");
++	if (!ofnode_valid(node))
++		return -ENODEV;
++
++	ret = uclass_get_device_by_ofnode(UCLASS_SPI, ofnode_get_parent(node),
++					  &bus);
++	if (ret)
++		return ret;
++
++	ret = _spi_get_bus_and_cs(dev_seq(bus),
++				  ofnode_read_u32_default(node, "reg", 0),
++				  ofnode_read_u32_default(node, "spi-max-frequency",
++							  20000000),
++				  SPI_MODE_0, "spi_generic_drv", "spl_spi_nand",
++				  &bus, &spinand);
++	if (ret)
++		return ret;
++
++	ret = spi_claim_bus(spinand);
++	if (ret)
++		return ret;
++
++	/* Reset, then make sure on-die ECC is enabled */
++	{
++		struct spi_mem_op op = SPI_MEM_OP(SPI_MEM_OP_CMD(SPINAND_OP_RESET, 1),
++						  SPI_MEM_OP_NO_ADDR,
++						  SPI_MEM_OP_NO_DUMMY,
++						  SPI_MEM_OP_NO_DATA);
++		u8 status;
++
++		ret = spi_mem_exec_op(spinand, &op);
++		if (ret)
++			return ret;
++		udelay(1000);
++		ret = spinand_wait(&status);
++		if (ret)
++			return ret;
++	}
++
++	ret = spinand_get_feature(SPINAND_REG_CFG, &cfg);
++	if (ret)
++		return ret;
++	if (!(cfg & SPINAND_CFG_ECC_ENABLE))
++		ret = spinand_set_feature(SPINAND_REG_CFG,
++					  cfg | SPINAND_CFG_ECC_ENABLE);
++
++	return ret;
++}
++
++/* nand_spl_read_block(): read within one physical eraseblock */
++int nand_spl_read_block(int block, int offset, int len, void *dst)
++{
++	int ret;
++
++	ret = spinand_spl_init();
++	if (ret)
++		return ret;
++	if (spinand_block_isbad(block))
++		return -EIO;
++
++	ret = spinand_read_in_block(block * BLOCK_SIZE_B + offset, len, dst);
++	/* UBI copes with bitflips; only report hard failures */
++	return ret == -EBADMSG ? -EUCLEAN : ret;
++}
++
++static ulong spl_spi_nand_read(struct spl_load_info *load, ulong offs,
++			       ulong size, void *dst)
++{
++	u32 base = *(u32 *)load->priv;
++	int ret;
++
++	ret = spinand_read_skip_bad(base, offs - base, size, dst);
++	if (ret) {
++		debug("%s: read @%lx+%lx failed: %d\n", __func__, offs, size,
++		      ret);
++		return 0;
++	}
++
++	return size;
++}
++
++static int spl_spi_nand_load_copy(struct spl_image_info *spl_image,
++				  struct spl_boot_device *bootdev, u32 offs)
++{
++	struct spl_load_info load;
++
++	spl_load_init(&load, spl_spi_nand_read, &offs, 1);
++	return spl_load(spl_image, bootdev, &load, 0, offs);
++}
++
++static int spl_spi_nand_load_image(struct spl_image_info *spl_image,
++				   struct spl_boot_device *bootdev)
++{
++	int ret;
++
++	ret = spinand_spl_init();
++	if (ret) {
++		printf("SPI NAND: init failed: %d\n", ret);
++		return ret;
++	}
++
++	ret = spl_spi_nand_load_copy(spl_image, bootdev,
++				     CONFIG_SPL_SPI_NAND_U_BOOT_OFFS);
++	if (ret && CONFIG_SPL_SPI_NAND_U_BOOT_OFFS_REDUND) {
++		printf("SPI NAND: primary U-Boot failed (%d), trying 0x%x\n",
++		       ret, CONFIG_SPL_SPI_NAND_U_BOOT_OFFS_REDUND);
++		ret = spl_spi_nand_load_copy(spl_image, bootdev,
++					     CONFIG_SPL_SPI_NAND_U_BOOT_OFFS_REDUND);
++	}
++
++	return ret;
++}
++SPL_LOAD_IMAGE_METHOD("SPI-NAND", 0, BOOT_DEVICE_NAND, spl_spi_nand_load_image);

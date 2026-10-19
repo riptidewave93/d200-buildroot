@@ -1,0 +1,229 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 15:44:02 -0500
+Subject: [PATCH] misc: rockchip-otp: add RK3308B-S support
+
+The RK3308B-S has the OTP controller of the PX30S rather than that of
+the RK3308/RK3308B: reads go through a mode register (deep standby ->
+standby -> active -> read access) with a status bit per transition,
+one 32-bit word at a time, and the non-secure area starts at word 224.
+
+The RK3308B-S shares the "rockchip,rk3308-otp" compatible with the
+older chips, so pick the read method from the GRF chip ID. A
+"rockchip,rk3308bs-otp" compatible is added as well.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ drivers/misc/rockchip-otp.c | 133 ++++++++++++++++++++++++++++++++++--
+ 1 file changed, 129 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/misc/rockchip-otp.c b/drivers/misc/rockchip-otp.c
+index 64b62389..8a1e5c13 100644
+--- a/drivers/misc/rockchip-otp.c
++++ b/drivers/misc/rockchip-otp.c
+@@ -9,9 +9,12 @@
+ #include <dm.h>
+ #include <linux/bitops.h>
+ #include <linux/delay.h>
++#include <linux/err.h>
+ #include <linux/iopoll.h>
+ #include <malloc.h>
+ #include <misc.h>
++#include <syscon.h>
++#include <asm/arch-rockchip/clock.h>
+ 
+ /* OTP Register Offsets */
+ #define OTPC_SBPI_CTRL			0x0020
+@@ -60,6 +63,25 @@
+ #define RK3588_OTPC_INT_ST		0x0084
+ #define RK3588_RD_DONE			BIT(1)
+ 
++#define RK3308BS_OTPC_MODE_CTRL		0x2000
++#define RK3308BS_OTPC_IRQ_ST		0x2008
++#define RK3308BS_OTPC_ACCESS_ADDR	0x200c
++#define RK3308BS_OTPC_RD_DATA		0x2010
++#define RK3308BS_OTPC_REPR_RD_TRANS_NUM	0x2020
++#define RK3308BS_MODE_DEEP_STANDBY	0x0
++#define RK3308BS_MODE_STANDBY		0x1
++#define RK3308BS_MODE_ACTIVE		0x2
++#define RK3308BS_MODE_READ_ACCESS	0x3
++#define RK3308BS_RDM_IRQ_ST		BIT(0)
++#define RK3308BS_STB2ACT_IRQ_ST		BIT(7)
++#define RK3308BS_DP2STB_IRQ_ST		BIT(8)
++#define RK3308BS_ACT2STB_IRQ_ST		BIT(9)
++#define RK3308BS_STB2DP_IRQ_ST		BIT(10)
++
++/* GRF_CHIP_ID value of the RK3308B-S */
++#define RK3308_GRF_CHIP_ID		0x800
++#define RK3308BS_CHIP_ID		0x3308c
++
+ #define RV1126_OTP_NVM_CEB		0x00
+ #define RV1126_OTP_NVM_RSTB		0x04
+ #define RV1126_OTP_NVM_ST		0x18
+@@ -70,6 +92,7 @@
+ 
+ struct rockchip_otp_plat {
+ 	void __iomem *base;
++	const struct rockchip_otp_data *data;
+ };
+ 
+ struct rockchip_otp_data {
+@@ -80,6 +103,8 @@ struct rockchip_otp_data {
+ 	int block_size;
+ };
+ 
++static const struct rockchip_otp_data px30_data, rk3308bs_data;
++
+ #if defined(DEBUG)
+ static int dump_otp(struct cmd_tbl *cmdtp, int flag,
+ 		    int argc, char *const argv[])
+@@ -260,6 +285,80 @@ static int rockchip_rv1126_otp_init(struct udevice *dev)
+ 	return 0;
+ }
+ 
++static int rk3308bs_otp_set_mode(struct rockchip_otp_plat *otp, u32 mode,
++				 u32 done)
++{
++	writel(mode, otp->base + RK3308BS_OTPC_MODE_CTRL);
++
++	return rockchip_otp_poll_timeout(otp, done, RK3308BS_OTPC_IRQ_ST);
++}
++
++static int rk3308bs_otp_active(struct rockchip_otp_plat *otp)
++{
++	int ret;
++
++	switch (readl(otp->base + RK3308BS_OTPC_MODE_CTRL)) {
++	case RK3308BS_MODE_DEEP_STANDBY:
++		ret = rk3308bs_otp_set_mode(otp, RK3308BS_MODE_STANDBY,
++					    RK3308BS_DP2STB_IRQ_ST);
++		if (ret)
++			return ret;
++		fallthrough;
++	case RK3308BS_MODE_STANDBY:
++		return rk3308bs_otp_set_mode(otp, RK3308BS_MODE_ACTIVE,
++					     RK3308BS_STB2ACT_IRQ_ST);
++	default:
++		return 0;
++	}
++}
++
++static int rk3308bs_otp_standby(struct rockchip_otp_plat *otp)
++{
++	int ret;
++
++	switch (readl(otp->base + RK3308BS_OTPC_MODE_CTRL)) {
++	case RK3308BS_MODE_ACTIVE:
++		ret = rk3308bs_otp_set_mode(otp, RK3308BS_MODE_STANDBY,
++					    RK3308BS_ACT2STB_IRQ_ST);
++		if (ret)
++			return ret;
++		fallthrough;
++	case RK3308BS_MODE_STANDBY:
++		return rk3308bs_otp_set_mode(otp, RK3308BS_MODE_DEEP_STANDBY,
++					     RK3308BS_STB2DP_IRQ_ST);
++	default:
++		return 0;
++	}
++}
++
++static int rockchip_rk3308bs_otp_read(struct udevice *dev, int offset,
++				      void *buf, int size)
++{
++	struct rockchip_otp_plat *otp = dev_get_plat(dev);
++	u32 *buffer = buf;
++	int ret, i;
++
++	ret = rk3308bs_otp_active(otp);
++	if (ret)
++		return ret;
++
++	for (i = 0; i < size; i++) {
++		writel(1, otp->base + RK3308BS_OTPC_REPR_RD_TRANS_NUM);
++		writel(offset++, otp->base + RK3308BS_OTPC_ACCESS_ADDR);
++		writel(RK3308BS_MODE_READ_ACCESS,
++		       otp->base + RK3308BS_OTPC_MODE_CTRL);
++		ret = rockchip_otp_poll_timeout(otp, RK3308BS_RDM_IRQ_ST,
++						RK3308BS_OTPC_IRQ_ST);
++		if (ret)
++			break;
++		buffer[i] = readl(otp->base + RK3308BS_OTPC_RD_DATA);
++	}
++
++	rk3308bs_otp_standby(otp);
++
++	return ret;
++}
++
+ static int rockchip_rv1126_otp_read(struct udevice *dev, int offset, void *buf,
+ 				    int size)
+ {
+@@ -285,8 +384,8 @@ static int rockchip_rv1126_otp_read(struct udevice *dev, int offset, void *buf,
+ static int rockchip_otp_read(struct udevice *dev, int offset,
+ 			     void *buf, int size)
+ {
+-	const struct rockchip_otp_data *data =
+-		(void *)dev_get_driver_data(dev);
++	struct rockchip_otp_plat *plat = dev_get_plat(dev);
++	const struct rockchip_otp_data *data = plat->data;
+ 	u32 block_start, block_end, block_offset, blocks;
+ 	u8 *buffer;
+ 	int ret;
+@@ -332,15 +431,30 @@ static int rockchip_otp_of_to_plat(struct udevice *dev)
+ 	struct rockchip_otp_plat *plat = dev_get_plat(dev);
+ 
+ 	plat->base = dev_read_addr_ptr(dev);
++	plat->data = (const struct rockchip_otp_data *)dev_get_driver_data(dev);
++
++	/*
++	 * The RK3308B-S uses a different OTP controller than the RK3308 and
++	 * RK3308B while sharing their "rockchip,rk3308-otp" compatible; tell
++	 * them apart by the GRF chip ID.
++	 */
++	if (IS_ENABLED(CONFIG_ROCKCHIP_RK3308) && plat->data == &px30_data &&
++	    device_is_compatible(dev, "rockchip,rk3308-otp")) {
++		void *grf = syscon_get_first_range(ROCKCHIP_SYSCON_GRF);
++
++		if (!IS_ERR_OR_NULL(grf) &&
++		    readl(grf + RK3308_GRF_CHIP_ID) == RK3308BS_CHIP_ID)
++			plat->data = &rk3308bs_data;
++	}
+ 
+ 	return 0;
+ }
+ 
+ static int rockchip_otp_probe(struct udevice *dev)
+ {
+-	struct rockchip_otp_data *data;
++	struct rockchip_otp_plat *plat = dev_get_plat(dev);
++	const struct rockchip_otp_data *data = plat->data;
+ 
+-	data = (struct rockchip_otp_data *)dev_get_driver_data(dev);
+ 	if (!data)
+ 		return -EINVAL;
+ 
+@@ -355,6 +469,13 @@ static const struct rockchip_otp_data px30_data = {
+ 	.size = 0x40,
+ };
+ 
++static const struct rockchip_otp_data rk3308bs_data = {
++	.read = rockchip_rk3308bs_otp_read,
++	.offset = 0x380,	/* non-secure area starts at word 224 */
++	.size = 0x80,
++	.block_size = 4,
++};
++
+ static const struct rockchip_otp_data rk3568_data = {
+ 	.read = rockchip_rk3568_otp_read,
+ 	.size = 0x80,
+@@ -390,6 +511,10 @@ static const struct udevice_id rockchip_otp_ids[] = {
+ 		.compatible = "rockchip,rk3308-otp",
+ 		.data = (ulong)&px30_data,
+ 	},
++	{
++		.compatible = "rockchip,rk3308bs-otp",
++		.data = (ulong)&rk3308bs_data,
++	},
+ 	{
+ 		.compatible = "rockchip,rk3506-otp",
+ 		.data = (ulong)&rk3568_data,

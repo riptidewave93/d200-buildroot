@@ -1,0 +1,5 @@
+# Release U-Boot: no way into the U-Boot console from the UART.
+# Boot without a key check; if Linux doesn't boot, wait in fastboot, then reset.
+CONFIG_BOOTDELAY=-2
+CONFIG_BOOTCOMMAND="ubi part ubi && ubi read ${kernel_addr_r} kernel && bootm ${kernel_addr_r}; fastboot usb 0; reset"
+# CONFIG_SPL_ROCKCHIP_MASKROM_KEY is not set

@@ -1,0 +1,58 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 17:37:37 -0500
+Subject: [PATCH] drm/rockchip: vop: add RK3308 VOP support
+
+The RK3308 VOP is a "VOP lite" with the PX30 register layout and two
+windows: win0 (scaling, RGB and YUV formats) and win1 (RGB only). Its
+only output is the parallel RGB interface.
+
+Use win0 as the primary plane and win1 as an overlay. As on RV1126,
+the controller has the global_regdone_en bit, which the Rockchip vendor
+kernel also sets on RK3308, so set it too.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ drivers/gpu/drm/rockchip/rockchip_vop_reg.c | 22 +++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/drivers/gpu/drm/rockchip/rockchip_vop_reg.c b/drivers/gpu/drm/rockchip/rockchip_vop_reg.c
+index 72301e0a3..98aeb0933 100644
+--- a/drivers/gpu/drm/rockchip/rockchip_vop_reg.c
++++ b/drivers/gpu/drm/rockchip/rockchip_vop_reg.c
+@@ -1287,6 +1287,26 @@ static const struct vop_data rv1126_vop = {
+ 	.lut_size = 1024,
+ };
+ 
++static const struct vop_win_data rk3308_vop_win_data[] = {
++	{ .base = 0x00, .phy = &px30_win0_data,
++	  .type = DRM_PLANE_TYPE_PRIMARY },
++	{ .base = 0x00, .phy = &px30_win1_data,
++	  .type = DRM_PLANE_TYPE_OVERLAY },
++};
++
++static const struct vop_data rk3308_vop = {
++	.version = VOP_VERSION(2, 8),
++	.intr = &px30_intr,
++	.feature = VOP_FEATURE_INTERNAL_RGB,
++	.common = &px30_common,
++	.modeset = &px30_modeset,
++	.output = &px30_output,
++	.misc = &rv1126_misc,
++	.win = rk3308_vop_win_data,
++	.win_size = ARRAY_SIZE(rk3308_vop_win_data),
++	.max_output = { 1920, 1080 },
++};
++
+ static const struct of_device_id vop_driver_dt_match[] = {
+ 	{ .compatible = "rockchip,rk3036-vop",
+ 	  .data = &rk3036_vop },
+@@ -1302,6 +1322,8 @@ static const struct of_device_id vop_driver_dt_match[] = {
+ 	  .data = &rk3188_vop },
+ 	{ .compatible = "rockchip,rk3288-vop",
+ 	  .data = &rk3288_vop },
++	{ .compatible = "rockchip,rk3308-vop",
++	  .data = &rk3308_vop },
+ 	{ .compatible = "rockchip,rk3368-vop",
+ 	  .data = &rk3368_vop },
+ 	{ .compatible = "rockchip,rk3366-vop",

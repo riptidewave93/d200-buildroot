@@ -1,0 +1,62 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 10:09:12 -0500
+Subject: [PATCH] rockchip: add 'maskrom' command
+
+Add a 'maskrom' command that sets the BOOT_BROM_DOWNLOAD flag in the
+boot mode register and resets, so the BootROM enters USB download
+(maskrom) mode. This provides an easy way to enter maskrom mode from
+the U-Boot console.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ arch/arm/mach-rockchip/Kconfig     |  9 +++++++++
+ arch/arm/mach-rockchip/boot_mode.c | 15 +++++++++++++++
+ 2 files changed, 24 insertions(+)
+
+diff --git a/arch/arm/mach-rockchip/Kconfig b/arch/arm/mach-rockchip/Kconfig
+index 1a2e7847..2a52aa19 100644
+--- a/arch/arm/mach-rockchip/Kconfig
++++ b/arch/arm/mach-rockchip/Kconfig
+@@ -652,6 +652,15 @@ config ROCKCHIP_EXTERNAL_TPL
+ 	  Enable this option and build with ROCKCHIP_TPL=/path/to/ddr.bin to
+ 	  include the external TPL in the image built by binman.
+ 
++config CMD_ROCKCHIP_MASKROM
++	bool "Add 'maskrom' command"
++	depends on CMDLINE && ROCKCHIP_BOOT_MODE_REG != 0
++	help
++	  Add a 'maskrom' command that sets the BOOT_BROM_DOWNLOAD flag in
++	  the boot mode register and resets, so the BootROM enters USB
++	  download (maskrom) mode. This provides an easy way to enter
++	  maskrom mode from the U-Boot console.
++
+ config ROCKCHIP_BOOT_MODE_REG
+ 	hex "Rockchip boot mode flag register address"
+ 	help
+diff --git a/arch/arm/mach-rockchip/boot_mode.c b/arch/arm/mach-rockchip/boot_mode.c
+index 55e94566..539fc7c7 100644
+--- a/arch/arm/mach-rockchip/boot_mode.c
++++ b/arch/arm/mach-rockchip/boot_mode.c
+@@ -27,6 +27,21 @@ void set_back_to_bootrom_dnl_flag(void)
+ 	writel(BOOT_BROM_DOWNLOAD, CONFIG_ROCKCHIP_BOOT_MODE_REG);
+ }
+ 
++#if IS_ENABLED(CONFIG_CMD_ROCKCHIP_MASKROM)
++static int do_maskrom(struct cmd_tbl *cmdtp, int flag, int argc,
++		      char *const argv[])
++{
++	printf("Rebooting into BootROM USB download (maskrom) mode...\n");
++	set_back_to_bootrom_dnl_flag();
++	do_reset(NULL, 0, 0, NULL);
++
++	return CMD_RET_SUCCESS;
++}
++
++U_BOOT_CMD(maskrom, 1, 0, do_maskrom,
++	   "reboot into Rockchip BootROM USB download (maskrom) mode", "");
++#endif
++
+ /*
+  * detect download key status by adc, most rockchip
+  * based boards use adc sample the download key status,

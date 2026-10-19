@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 17:38:02 -0500
+Subject: [PATCH] dt-bindings: vendor-prefixes: add Ulanzi
+
+Ulanzi makes camera accessories and stream controllers.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ Documentation/devicetree/bindings/vendor-prefixes.yaml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/vendor-prefixes.yaml b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+index 396044f36..595af2cd2 100644
+--- a/Documentation/devicetree/bindings/vendor-prefixes.yaml
++++ b/Documentation/devicetree/bindings/vendor-prefixes.yaml
+@@ -1759,6 +1759,8 @@ patternProperties:
+     description: Ufi Space Co., Ltd.
+   "^ugoos,.*":
+     description: Ugoos Industrial Co., Ltd.
++  "^ulanzi,.*":
++    description: Shenzhen Ulanzi Technology Co., Ltd.
+   "^ultrapower,.*":
+     description: Beijing Ultrapower Software Co., Ltd.
+   "^uni-t,.*":

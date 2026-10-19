@@ -1,0 +1,44 @@
+/* 0x00200000: start of RAM after BL31 */
+/dts-v1/;
+
+/ {
+	description = "Ulanzi D200 Linux";
+	#address-cells = <1>;
+
+	images {
+		kernel {
+			description = "Linux kernel";
+			data = /incbin/("Image.gz");
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "gzip";
+			load = <0x00200000>;
+			entry = <0x00200000>;
+			hash {
+				algo = "sha256";
+			};
+		};
+
+		fdt {
+			description = "Ulanzi D200 device tree";
+			data = /incbin/("rk3308-ulanzi-d200.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+			hash {
+				algo = "sha256";
+			};
+		};
+	};
+
+	configurations {
+		default = "d200";
+
+		d200 {
+			description = "Ulanzi D200";
+			kernel = "kernel";
+			fdt = "fdt";
+		};
+	};
+};

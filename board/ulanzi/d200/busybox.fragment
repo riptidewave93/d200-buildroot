@@ -1,0 +1,2 @@
+# udhcpd: DHCP server for the USB Ethernet gadget
+CONFIG_UDHCPD=y

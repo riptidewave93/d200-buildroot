@@ -1,0 +1,5 @@
+config BR2_PACKAGE_D200_UTILS
+	bool "d200-utils"
+	help
+	  Small tools for the Ulanzi D200:
+	  reboot-to [normal|fastboot|maskrom]   reboot into a boot mode

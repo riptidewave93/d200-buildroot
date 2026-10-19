@@ -1,0 +1,102 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 14:45:50 -0500
+Subject: [PATCH] rockchip: spl: add optional Ctrl-B to enter maskrom mode
+
+Add SPL_ROCKCHIP_MASKROM_KEY: right after the console comes up, SPL
+watches it for a short time (SPL_ROCKCHIP_MASKROM_KEY_TIMEOUT_MS,
+100 ms by default). If Ctrl-B is received it sets the BOOT_BROM_DOWNLOAD
+flag and resets into BootROM USB download mode. Holding or repeating
+Ctrl-B while powering on is enough, as already-received characters are
+seen too. This gives a way into maskrom mode from the serial console
+before U-Boot proper runs.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ arch/arm/mach-rockchip/Kconfig | 19 +++++++++++++++++++
+ arch/arm/mach-rockchip/spl.c   | 28 ++++++++++++++++++++++++++++
+ 2 files changed, 47 insertions(+)
+
+diff --git a/arch/arm/mach-rockchip/Kconfig b/arch/arm/mach-rockchip/Kconfig
+index 09d0c1c8..d78bba13 100644
+--- a/arch/arm/mach-rockchip/Kconfig
++++ b/arch/arm/mach-rockchip/Kconfig
+@@ -661,6 +661,25 @@ config SPL_ROCKCHIP_MASKROM_FALLBACK
+ 	  download (maskrom) mode instead of SPL hanging, ready to be
+ 	  reflashed over USB.
+ 
++config SPL_ROCKCHIP_MASKROM_KEY
++	bool "Enter maskrom mode on Ctrl-B on the SPL console"
++	depends on SPL && SPL_SERIAL && ROCKCHIP_BOOT_MODE_REG != 0 && SPL_SYSRESET
++	help
++	  Watch the SPL console for a short time after it comes up. If Ctrl-B
++	  is received, set the BOOT_BROM_DOWNLOAD flag and reset, so the
++	  BootROM enters USB download (maskrom) mode. Hold or repeat Ctrl-B
++	  while powering on to recover from a U-Boot proper that loads but
++	  does not work.
++
++config SPL_ROCKCHIP_MASKROM_KEY_TIMEOUT_MS
++	int "Time to wait for Ctrl-B (ms)"
++	depends on SPL_ROCKCHIP_MASKROM_KEY
++	default 100
++	help
++	  How long SPL polls the console for Ctrl-B. Characters already
++	  received before SPL started are seen as well, so a short window is
++	  enough when Ctrl-B is repeated during power on.
++
+ config CMD_ROCKCHIP_MASKROM
+ 	bool "Add 'maskrom' command"
+ 	depends on CMDLINE && ROCKCHIP_BOOT_MODE_REG != 0
+diff --git a/arch/arm/mach-rockchip/spl.c b/arch/arm/mach-rockchip/spl.c
+index 6d6c0d6d..b34c5df2 100644
+--- a/arch/arm/mach-rockchip/spl.c
++++ b/arch/arm/mach-rockchip/spl.c
+@@ -13,6 +13,8 @@
+ #include <log.h>
+ #include <mapmem.h>
+ #include <ram.h>
++#include <stdio.h>
++#include <time.h>
+ #include <spl.h>
+ #include <asm/arch-rockchip/boot_mode.h>
+ #include <asm/arch-rockchip/bootrom.h>
+@@ -108,6 +110,31 @@ __weak int arch_cpu_init(void)
+ 	return 0;
+ }
+ 
++#if CONFIG_IS_ENABLED(ROCKCHIP_MASKROM_KEY)
++/*
++ * Recovery hook: if Ctrl-B arrives on the console within a short window
++ * after SPL starts (e.g. hold/spam Ctrl-B while powering on), set the
++ * BOOT_BROM_DOWNLOAD flag and reset into BootROM USB download (maskrom)
++ * mode. This covers a U-Boot proper that loads but does not work.
++ */
++static void rockchip_spl_check_maskrom_key(void)
++{
++	ulong start = get_timer(0);
++
++	do {
++		while (tstc()) {
++			if (getchar() != 0x02)	/* Ctrl-B */
++				continue;
++			puts("SPL: Ctrl-B, entering maskrom (USB download) mode\n");
++			writel(BOOT_BROM_DOWNLOAD, CONFIG_ROCKCHIP_BOOT_MODE_REG);
++			reset_cpu();
++		}
++	} while (get_timer(start) < CONFIG_SPL_ROCKCHIP_MASKROM_KEY_TIMEOUT_MS);
++}
++#else
++static inline void rockchip_spl_check_maskrom_key(void) {}
++#endif
++
+ void board_init_f(ulong dummy)
+ {
+ 	int ret;
+@@ -144,6 +171,7 @@ void board_init_f(ulong dummy)
+ 	}
+ #endif
+ 	preloader_console_init();
++	rockchip_spl_check_maskrom_key();
+ }
+ 
+ void spl_board_prepare_for_boot(void)

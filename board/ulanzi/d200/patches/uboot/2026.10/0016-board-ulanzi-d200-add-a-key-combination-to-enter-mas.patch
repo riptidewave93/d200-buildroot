@@ -1,0 +1,149 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 15:22:33 -0500
+Subject: [PATCH] board: ulanzi: d200: add a key combination to enter maskrom
+ from SPL
+
+This is a device specific recovery method for the Ulanzi D200, which has
+no maskrom button.
+
+Holding the top-left and bottom-left front keys while powering on makes
+SPL set the BOOT_BROM_DOWNLOAD flag and reset, so the BootROM enters USB
+download (maskrom) mode instead of loading U-Boot proper. This allows
+recovering the board over USB when U-Boot proper is broken.
+
+Both keys share column GPIO4_B6 of the key matrix (rows GPIO4_D1 and
+GPIO4_D4, pulled up, active low). SPL drives the column low, waits
+60 us and reads both rows, and requires the combination on two samples
+10 ms apart. The GPIO4 registers are accessed directly, so no GPIO
+driver is needed in SPL.
+
+The existing board file is now only built for U-Boot proper; the SPL
+code lives in spl.c and is enabled with SPL_BOARD_INIT.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ board/ulanzi/d200/Makefile           |  4 +++
+ board/ulanzi/d200/keys.h             | 50 ++++++++++++++++++++++++++++
+ board/ulanzi/d200/spl.c              | 33 ++++++++++++++++++
+ configs/ulanzi-d200-rk3308_defconfig |  1 +
+ 4 files changed, 88 insertions(+)
+ create mode 100644 board/ulanzi/d200/keys.h
+ create mode 100644 board/ulanzi/d200/spl.c
+
+diff --git a/board/ulanzi/d200/Makefile b/board/ulanzi/d200/Makefile
+index d43f1ba4..85fccc03 100644
+--- a/board/ulanzi/d200/Makefile
++++ b/board/ulanzi/d200/Makefile
+@@ -1,3 +1,7 @@
+ # SPDX-License-Identifier: GPL-2.0+
+ 
++ifdef CONFIG_XPL_BUILD
++obj-$(CONFIG_SPL_BOARD_INIT)	+= spl.o
++else
+ obj-y	+= d200.o
++endif
+diff --git a/board/ulanzi/d200/keys.h b/board/ulanzi/d200/keys.h
+new file mode 100644
+index 00000000..9431ee78
+--- /dev/null
++++ b/board/ulanzi/d200/keys.h
+@@ -0,0 +1,50 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Ulanzi D200 front keys
++ *
++ * The front keys are a GPIO4 matrix: rows are pulled up (a pressed key
++ * reads low), columns idle as inputs. A key is read by driving its column
++ * low, letting it settle and reading its row. The GPIO4 registers are used
++ * directly so this also works in SPL without GPIO drivers.
++ *
++ * Columns, left to right: GPIO4_B6, B7, C0, D6, D5.
++ * Rows, top to bottom: GPIO4_D1, D0, D4.
++ */
++
++#ifndef __D200_KEYS_H
++#define __D200_KEYS_H
++
++#include <asm/io.h>
++#include <linux/bitops.h>
++#include <linux/delay.h>
++
++#define D200_GPIO4_BASE		0xff260000
++#define D200_GPIO_SWPORT_DR	0x00
++#define D200_GPIO_SWPORT_DDR	0x04
++#define D200_GPIO_EXT_PORT	0x50
++
++#define D200_KEY_COL_LEFT	BIT(14)		/* GPIO4_B6 */
++#define D200_KEY_ROW_TOP	BIT(25)		/* GPIO4_D1 */
++#define D200_KEY_ROW_BOTTOM	BIT(28)		/* GPIO4_D4 */
++#define D200_KEY_SETTLE_US	60
++
++/* True if all keys on @rows of column @col are pressed */
++static inline bool d200_keys_held(u32 col, u32 rows)
++{
++	void __iomem *gpio = (void __iomem *)D200_GPIO4_BASE;
++	u32 ext;
++
++	/* column as output low */
++	clrbits_le32(gpio + D200_GPIO_SWPORT_DR, col);
++	setbits_le32(gpio + D200_GPIO_SWPORT_DDR, col);
++	udelay(D200_KEY_SETTLE_US);
++
++	ext = readl(gpio + D200_GPIO_EXT_PORT);
++
++	/* back to input */
++	clrbits_le32(gpio + D200_GPIO_SWPORT_DDR, col);
++
++	return !(ext & rows);
++}
++
++#endif
+diff --git a/board/ulanzi/d200/spl.c b/board/ulanzi/d200/spl.c
+new file mode 100644
+index 00000000..80464fc9
+--- /dev/null
++++ b/board/ulanzi/d200/spl.c
+@@ -0,0 +1,33 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Ulanzi D200: SPL recovery key combination
++ *
++ * Holding the top-left and bottom-left front keys while powering on makes
++ * SPL enter the BootROM USB download (maskrom) mode instead of loading
++ * U-Boot proper, so the board can be recovered over USB even when U-Boot
++ * proper is broken.
++ */
++
++#include <cpu_func.h>
++#include <spl.h>
++#include <stdio.h>
++#include <asm/io.h>
++#include <asm/arch-rockchip/boot_mode.h>
++#include <linux/delay.h>
++#include "keys.h"
++
++#define RECOVERY_ROWS	(D200_KEY_ROW_TOP | D200_KEY_ROW_BOTTOM)
++
++void spl_board_init(void)
++{
++	/* require the combination on two samples to ignore glitches */
++	if (!d200_keys_held(D200_KEY_COL_LEFT, RECOVERY_ROWS))
++		return;
++	mdelay(10);
++	if (!d200_keys_held(D200_KEY_COL_LEFT, RECOVERY_ROWS))
++		return;
++
++	puts("D200: recovery keys held, entering maskrom (USB download) mode\n");
++	writel(BOOT_BROM_DOWNLOAD, CONFIG_ROCKCHIP_BOOT_MODE_REG);
++	reset_cpu();
++}
+diff --git a/configs/ulanzi-d200-rk3308_defconfig b/configs/ulanzi-d200-rk3308_defconfig
+index 87e6a68f..8c2593f6 100644
+--- a/configs/ulanzi-d200-rk3308_defconfig
++++ b/configs/ulanzi-d200-rk3308_defconfig
+@@ -121,3 +121,4 @@ CONFIG_FASTBOOT_FLASH_MTD_UBI_PART="ubi"
+ CONFIG_FASTBOOT_OEM_RUN=y
+ CONFIG_CONSOLE_RECORD=y
+ CONFIG_FASTBOOT_CMD_OEM_CONSOLE=y
++CONFIG_SPL_BOARD_INIT=y

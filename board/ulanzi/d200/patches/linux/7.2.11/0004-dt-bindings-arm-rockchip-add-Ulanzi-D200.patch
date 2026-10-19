@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 17:38:02 -0500
+Subject: [PATCH] dt-bindings: arm: rockchip: add Ulanzi D200
+
+The Ulanzi D200 is a stream controller built around an RK3308B-S, with
+a grid of keys in front of a 720x1280 LCD.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ Documentation/devicetree/bindings/arm/rockchip.yaml | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/arm/rockchip.yaml b/Documentation/devicetree/bindings/arm/rockchip.yaml
+index 1a9dde186..e679ba54f 100644
+--- a/Documentation/devicetree/bindings/arm/rockchip.yaml
++++ b/Documentation/devicetree/bindings/arm/rockchip.yaml
+@@ -1306,6 +1306,11 @@ properties:
+           - const: turing,rk1
+           - const: rockchip,rk3588
+ 
++      - description: Ulanzi D200 stream controller
++        items:
++          - const: ulanzi,d200
++          - const: rockchip,rk3308
++
+       - description: WolfVision PF5 mainboard
+         items:
+           - const: wolfvision,rk3568-pf5

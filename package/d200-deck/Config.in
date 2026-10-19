@@ -1,0 +1,9 @@
+config BR2_PACKAGE_D200_DECK
+	bool "d200-deck"
+	depends on BR2_PACKAGE_HOST_GO_TARGET_ARCH_SUPPORTS
+	help
+	  deckd: shows pages of buttons on the D200 screen and runs
+	  their actions (USB HID keys, media keys, macros); serves the
+	  config channel.
+
+	  https://github.com/riptidewave93/d200-deck

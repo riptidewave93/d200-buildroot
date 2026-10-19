@@ -1,0 +1,513 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 16:08:00 -0500
+Subject: [PATCH] fastboot: add MTD and UBI flash backend
+
+Add a "FASTBOOT on MTD partitions" flash provider, for boards whose
+storage is an MTD device such as a SPI NAND (the existing NAND provider
+only handles raw NAND with mtdparts).
+
+Partitions are looked up by name with the MTD API, so they come from
+the device tree "partitions" node or mtdparts. Flashing erases the whole
+partition, then writes the image page by page, skipping bad blocks and
+all-0xff pages, so UBI images can be flashed as they are. Erasing erases
+the partition. Sparse images are not supported.
+
+With FASTBOOT_FLASH_MTD_UBI, names that are not MTD partitions are UBI
+volumes: "<mtd-partition>:<volume>", or just "<volume>" on the attached
+UBI device (FASTBOOT_FLASH_MTD_UBI_PART is attached if none is).
+Flashing replaces the volume contents, erasing empties the volume.
+Volumes can be created with "oem run:ubi create ...". Flashing or
+erasing the MTD partition UBI is attached to detaches UBI first.
+
+getvar partition-size reports the size of the partition or volume.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ drivers/fastboot/Kconfig      |  31 +++-
+ drivers/fastboot/Makefile     |   1 +
+ drivers/fastboot/fb_command.c |   8 +
+ drivers/fastboot/fb_getvar.c  |   3 +
+ drivers/fastboot/fb_mtd.c     | 313 ++++++++++++++++++++++++++++++++++
+ include/fb_mtd.h              |  38 +++++
+ 6 files changed, 393 insertions(+), 1 deletion(-)
+ create mode 100644 drivers/fastboot/fb_mtd.c
+ create mode 100644 include/fb_mtd.h
+
+diff --git a/drivers/fastboot/Kconfig b/drivers/fastboot/Kconfig
+index 1887f78b..7ab07b64 100644
+--- a/drivers/fastboot/Kconfig
++++ b/drivers/fastboot/Kconfig
+@@ -92,7 +92,7 @@ config FASTBOOT_FLASH
+ 	bool "Enable FASTBOOT FLASH command"
+ 	default y if ARCH_SUNXI && ( MMC || MTD_RAW_NAND )
+ 	default y if ARCH_ROCKCHIP && MMC
+-	depends on MMC || (MTD_RAW_NAND && CMD_MTDPARTS) || DM_SPI_FLASH || BLK
++	depends on MMC || (MTD_RAW_NAND && CMD_MTDPARTS) || DM_SPI_FLASH || BLK || MTD
+ 	select IMAGE_SPARSE
+ 	help
+ 	  The fastboot protocol includes a "flash" command for writing
+@@ -128,8 +128,37 @@ config FASTBOOT_FLASH_BLOCK
+ 	bool "FASTBOOT on block device"
+ 	depends on BLK
+ 
++config FASTBOOT_FLASH_MTD
++	bool "FASTBOOT on MTD partitions"
++	depends on MTD
++	help
++	  Flash and erase MTD partitions by name (for example the partitions
++	  of a SPI NAND described in the device tree). Bad blocks are
++	  skipped and all-0xff pages are not written, so UBI images can be
++	  flashed as they are. Sparse images are not supported.
++
+ endchoice
+ 
++config FASTBOOT_FLASH_MTD_UBI
++	bool "Also flash and erase UBI volumes"
++	depends on FASTBOOT_FLASH_MTD && CMD_UBI
++	help
++	  Names that are not MTD partitions are UBI volumes, given as
++	  "<mtd-partition>:<volume>" or as "<volume>" on the attached UBI
++	  device. Flashing replaces the volume contents (the volume must
++	  exist and be big enough; create it with "oem run:ubi create ..."
++	  if needed), erasing leaves the volume empty. Flashing or erasing
++	  the MTD partition UBI is attached to detaches UBI first.
++
++config FASTBOOT_FLASH_MTD_UBI_PART
++	string "MTD partition to attach UBI to"
++	depends on FASTBOOT_FLASH_MTD_UBI
++	default ""
++	help
++	  MTD partition attached when a plain "<volume>" name is used while
++	  no UBI device is attached. Leave empty to require an attached UBI
++	  device or the "<mtd-partition>:<volume>" form.
++
+ config FASTBOOT_FLASH_MMC_DEV
+ 	int "Define FASTBOOT MMC FLASH default device"
+ 	depends on FASTBOOT_FLASH_MMC
+diff --git a/drivers/fastboot/Makefile b/drivers/fastboot/Makefile
+index a341af07..fc102090 100644
+--- a/drivers/fastboot/Makefile
++++ b/drivers/fastboot/Makefile
+@@ -8,3 +8,4 @@ obj-$(CONFIG_FASTBOOT_FLASH_BLOCK) += fb_block.o
+ obj-$(CONFIG_FASTBOOT_FLASH_MMC) += fb_block.o fb_mmc.o
+ obj-$(CONFIG_FASTBOOT_FLASH_NAND) += fb_nand.o
+ obj-$(CONFIG_FASTBOOT_FLASH_SPI) += fb_spi_flash.o
++obj-$(CONFIG_FASTBOOT_FLASH_MTD) += fb_mtd.o
+diff --git a/drivers/fastboot/fb_command.c b/drivers/fastboot/fb_command.c
+index 18d86988..b6a346b5 100644
+--- a/drivers/fastboot/fb_command.c
++++ b/drivers/fastboot/fb_command.c
+@@ -10,6 +10,7 @@
+ #include <fastboot-internal.h>
+ #include <fb_block.h>
+ #include <fb_mmc.h>
++#include <fb_mtd.h>
+ #include <fb_nand.h>
+ #include <fb_spi_flash.h>
+ #include <part.h>
+@@ -354,6 +355,10 @@ static void __maybe_unused flash(char *cmd_parameter, char *response)
+ 	if (IS_ENABLED(CONFIG_FASTBOOT_FLASH_SPI))
+ 		fastboot_spi_flash_write(cmd_parameter, fastboot_buf_addr,
+ 					 image_size, response);
++
++	if (IS_ENABLED(CONFIG_FASTBOOT_FLASH_MTD))
++		fastboot_mtd_flash_write(cmd_parameter, fastboot_buf_addr,
++					 image_size, response);
+ }
+ 
+ /**
+@@ -378,6 +383,9 @@ static void __maybe_unused erase(char *cmd_parameter, char *response)
+ 
+ 	if (IS_ENABLED(CONFIG_FASTBOOT_FLASH_SPI))
+ 		fastboot_spi_flash_erase(cmd_parameter, response);
++
++	if (IS_ENABLED(CONFIG_FASTBOOT_FLASH_MTD))
++		fastboot_mtd_erase(cmd_parameter, response);
+ }
+ 
+ /**
+diff --git a/drivers/fastboot/fb_getvar.c b/drivers/fastboot/fb_getvar.c
+index e8aa0e09..f2f8c896 100644
+--- a/drivers/fastboot/fb_getvar.c
++++ b/drivers/fastboot/fb_getvar.c
+@@ -8,6 +8,7 @@
+ #include <fastboot-internal.h>
+ #include <fb_mmc.h>
+ #include <fb_block.h>
++#include <fb_mtd.h>
+ #include <fb_nand.h>
+ #include <fb_spi_flash.h>
+ #include <fs.h>
+@@ -135,6 +136,8 @@ static int getvar_get_part_info(const char *part_name, char *response,
+ 						     response);
+ 		if (r >= 0 && size)
+ 			*size = disk_part.size * disk_part.blksz;
++	} else if (IS_ENABLED(CONFIG_FASTBOOT_FLASH_MTD)) {
++		r = fastboot_mtd_get_part_info(part_name, size, response);
+ 	} else {
+ 		fastboot_fail("this storage is not supported in bootloader", response);
+ 		r = -ENODEV;
+diff --git a/drivers/fastboot/fb_mtd.c b/drivers/fastboot/fb_mtd.c
+new file mode 100644
+index 00000000..67f1518d
+--- /dev/null
++++ b/drivers/fastboot/fb_mtd.c
+@@ -0,0 +1,313 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Fastboot flash/erase for MTD partitions and UBI volumes
++ *
++ * The partition name given to "fastboot flash" / "fastboot erase" is first
++ * looked up as an MTD partition (e.g. from the device tree "partitions"
++ * node). Bad blocks are skipped and all-0xff pages are not written, as UBI
++ * images expect.
++ *
++ * With FASTBOOT_FLASH_MTD_UBI, any other name is a UBI volume: either
++ * "<mtd-partition>:<volume>", or just "<volume>" on the attached UBI device
++ * (FASTBOOT_FLASH_MTD_UBI_PART is attached if none is).
++ */
++
++#include <fastboot.h>
++#include <fastboot-internal.h>
++#include <fb_mtd.h>
++#include <image-sparse.h>
++#include <log.h>
++#include <mtd.h>
++#include <ubi_uboot.h>
++#include <linux/err.h>
++#include <linux/kernel.h>
++#include <linux/mtd/mtd.h>
++
++static struct mtd_info *fb_mtd_get(const char *name)
++{
++	struct mtd_info *mtd;
++
++	mtd_probe_devices();
++	mtd = get_mtd_device_nm(name);
++	if (IS_ERR_OR_NULL(mtd))
++		return NULL;
++
++	return mtd;
++}
++
++#if IS_ENABLED(CONFIG_FASTBOOT_FLASH_MTD_UBI)
++/* Name of the MTD partition UBI is attached to, or NULL */
++static const char *fb_ubi_attached(void)
++{
++	struct ubi_device *ubi = ubi_get_device(0);
++	const char *name = NULL;
++
++	if (ubi) {
++		if (ubi->mtd)
++			name = ubi->mtd->name;
++		ubi_put_device(ubi);
++	}
++
++	return name;
++}
++
++/*
++ * Find a UBI volume: "<mtd-partition>:<volume>" attaches UBI to that
++ * partition, a plain "<volume>" uses the attached UBI device (attaching
++ * FASTBOOT_FLASH_MTD_UBI_PART first if nothing is attached). On success
++ * @vol_name points at the volume name inside @name.
++ */
++static struct ubi_volume *fb_ubi_get(const char *name, const char **vol_name)
++{
++	const char *sep = strchr(name, ':');
++	char part[64];
++
++	if (sep) {
++		if (sep == name || sep - name >= sizeof(part))
++			return NULL;
++		strlcpy(part, name, sep - name + 1);
++		if (ubi_part(part, NULL))
++			return NULL;
++		name = sep + 1;
++	} else if (!fb_ubi_attached()) {
++		if (!*CONFIG_FASTBOOT_FLASH_MTD_UBI_PART ||
++		    ubi_part(CONFIG_FASTBOOT_FLASH_MTD_UBI_PART, NULL))
++			return NULL;
++	}
++
++	*vol_name = name;
++
++	return ubi_find_volume(name);
++}
++
++static size_t fb_ubi_vol_size(struct ubi_volume *vol)
++{
++	return (size_t)vol->reserved_pebs * vol->usable_leb_size;
++}
++
++/* UBI must not stay attached to a partition that is rewritten */
++static void fb_ubi_release(const char *mtd_name)
++{
++	const char *attached = fb_ubi_attached();
++
++	if (attached && !strcmp(attached, mtd_name))
++		ubi_detach();
++}
++#else
++static struct ubi_volume *fb_ubi_get(const char *name, const char **vol_name)
++{
++	return NULL;
++}
++
++static size_t fb_ubi_vol_size(struct ubi_volume *vol)
++{
++	return 0;
++}
++
++static void fb_ubi_release(const char *mtd_name) {}
++#endif
++
++static bool fb_mtd_is_empty(const u8 *buf, size_t len)
++{
++	while (len--)
++		if (*buf++ != 0xff)
++			return false;
++
++	return true;
++}
++
++/* Erase all good blocks of the partition */
++static int fb_mtd_erase_all(struct mtd_info *mtd)
++{
++	struct erase_info erase = {
++		.mtd = mtd,
++		.len = mtd->erasesize,
++	};
++	int ret;
++
++	for (erase.addr = 0; erase.addr < mtd->size;
++	     erase.addr += mtd->erasesize) {
++		ret = mtd_block_isbad(mtd, erase.addr);
++		if (ret < 0)
++			return ret;
++		if (ret) {
++			printf("Skipping bad block at 0x%08llx\n", erase.addr);
++			continue;
++		}
++
++		ret = mtd_erase(mtd, &erase);
++		if (ret) {
++			printf("Erase failed at 0x%08llx: %d\n", erase.addr,
++			       ret);
++			return ret;
++		}
++	}
++
++	return 0;
++}
++
++static int fb_mtd_write(struct mtd_info *mtd, u8 *buf, u32 size,
++			char *response)
++{
++	u32 len = ALIGN(size, mtd->writesize);
++	u64 off = 0;
++	size_t retlen;
++	int ret;
++
++	if (len > mtd->size) {
++		fastboot_fail("image too large for partition", response);
++		return -EFBIG;
++	}
++
++	/* Pad the last page; the download buffer is page aligned in size */
++	if (len > fastboot_buf_size) {
++		fastboot_fail("image does not fit the download buffer", response);
++		return -EFBIG;
++	}
++	memset(buf + size, 0xff, len - size);
++
++	printf("Erasing %s (0x%llx bytes)\n", mtd->name, mtd->size);
++	ret = fb_mtd_erase_all(mtd);
++	if (ret) {
++		fastboot_fail("failed to erase partition", response);
++		return ret;
++	}
++
++	printf("Writing 0x%x bytes to %s\n", size, mtd->name);
++	while (len) {
++		if (off >= mtd->size) {
++			fastboot_fail("not enough good blocks for image",
++				      response);
++			return -ENOSPC;
++		}
++
++		if (!(off & (mtd->erasesize - 1)) &&
++		    mtd_block_isbad(mtd, off)) {
++			off += mtd->erasesize;
++			continue;
++		}
++
++		if (!fb_mtd_is_empty(buf, mtd->writesize)) {
++			ret = mtd_write(mtd, off, mtd->writesize, &retlen, buf);
++			if (ret || retlen != mtd->writesize) {
++				printf("Write failed at 0x%08llx: %d\n", off,
++				       ret);
++				fastboot_fail("failed to write partition",
++					      response);
++				return ret ? ret : -EIO;
++			}
++		}
++
++		off += mtd->writesize;
++		buf += mtd->writesize;
++		len -= mtd->writesize;
++	}
++
++	return 0;
++}
++
++int fastboot_mtd_get_part_info(const char *part_name, size_t *size,
++			       char *response)
++{
++	struct mtd_info *mtd;
++	struct ubi_volume *vol;
++	const char *vol_name;
++
++	mtd = fb_mtd_get(part_name);
++	if (mtd) {
++		if (size)
++			*size = mtd->size;
++		put_mtd_device(mtd);
++		return 0;
++	}
++
++	vol = fb_ubi_get(part_name, &vol_name);
++	if (vol) {
++		if (size)
++			*size = fb_ubi_vol_size(vol);
++		return 0;
++	}
++
++	fastboot_fail("no such partition", response);
++
++	return -ENOENT;
++}
++
++void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
++			      u32 download_bytes, char *response)
++{
++	struct mtd_info *mtd;
++	struct ubi_volume *vol;
++	const char *vol_name;
++	int ret;
++
++	if (is_sparse_image(download_buffer)) {
++		fastboot_fail("sparse images are not supported", response);
++		return;
++	}
++
++	mtd = fb_mtd_get(cmd);
++	if (mtd) {
++		fb_ubi_release(mtd->name);
++		ret = fb_mtd_write(mtd, download_buffer, download_bytes,
++				   response);
++		put_mtd_device(mtd);
++		if (!ret)
++			fastboot_okay(NULL, response);
++		return;
++	}
++
++	vol = fb_ubi_get(cmd, &vol_name);
++	if (vol) {
++		if (download_bytes > fb_ubi_vol_size(vol)) {
++			fastboot_fail("image too large for volume", response);
++			return;
++		}
++
++		printf("Writing 0x%x bytes to UBI volume %s\n", download_bytes,
++		       vol_name);
++		ret = ubi_volume_write(vol_name, download_buffer, 0,
++				       download_bytes);
++		if (ret)
++			fastboot_fail("failed to write volume", response);
++		else
++			fastboot_okay(NULL, response);
++		return;
++	}
++
++	fastboot_fail("no such partition", response);
++}
++
++void fastboot_mtd_erase(const char *cmd, char *response)
++{
++	struct mtd_info *mtd;
++	struct ubi_volume *vol;
++	const char *vol_name;
++	int ret;
++
++	mtd = fb_mtd_get(cmd);
++	if (mtd) {
++		fb_ubi_release(mtd->name);
++		printf("Erasing %s (0x%llx bytes)\n", mtd->name, mtd->size);
++		ret = fb_mtd_erase_all(mtd);
++		put_mtd_device(mtd);
++		if (ret)
++			fastboot_fail("failed to erase partition", response);
++		else
++			fastboot_okay(NULL, response);
++		return;
++	}
++
++	vol = fb_ubi_get(cmd, &vol_name);
++	if (vol) {
++		/* a zero-length update leaves the volume empty */
++		ret = ubi_volume_write(vol_name, NULL, 0, 0);
++		if (ret)
++			fastboot_fail("failed to empty volume", response);
++		else
++			fastboot_okay(NULL, response);
++		return;
++	}
++
++	fastboot_fail("no such partition", response);
++}
+diff --git a/include/fb_mtd.h b/include/fb_mtd.h
+new file mode 100644
+index 00000000..31475f1c
+--- /dev/null
++++ b/include/fb_mtd.h
+@@ -0,0 +1,38 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++
++#ifndef _FB_MTD_H_
++#define _FB_MTD_H_
++
++#include <linux/types.h>
++
++/**
++ * fastboot_mtd_get_part_info() - Look up an MTD partition or UBI volume
++ *
++ * @part_name: Name of the MTD partition or UBI volume
++ * @size: If not NULL, set to the size of the partition/volume in bytes
++ * @response: Pointer to fastboot response buffer, filled on failure
++ * Return: 0 if found, negative error code otherwise
++ */
++int fastboot_mtd_get_part_info(const char *part_name, size_t *size,
++			       char *response);
++
++/**
++ * fastboot_mtd_flash_write() - Write an image to an MTD partition or UBI volume
++ *
++ * @cmd: Name of the MTD partition or UBI volume
++ * @download_buffer: Pointer to the image data
++ * @download_bytes: Size of the image data
++ * @response: Pointer to fastboot response buffer
++ */
++void fastboot_mtd_flash_write(const char *cmd, void *download_buffer,
++			      u32 download_bytes, char *response);
++
++/**
++ * fastboot_mtd_erase() - Erase an MTD partition or empty a UBI volume
++ *
++ * @cmd: Name of the MTD partition or UBI volume
++ * @response: Pointer to fastboot response buffer
++ */
++void fastboot_mtd_erase(const char *cmd, char *response);
++
++#endif

@@ -1,0 +1,86 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 10:09:12 -0500
+Subject: [PATCH] rockchip: spl: add optional fallback to maskrom mode
+
+When SPL cannot load the next stage from any boot device it hangs.
+
+Add SPL_ROCKCHIP_MASKROM_FALLBACK, which appends a last-resort
+BOOT_DEVICE_BOARD entry to the boot order that sets the
+BOOT_BROM_DOWNLOAD flag and resets, so the BootROM enters USB download
+(maskrom) mode instead, ready to be reflashed over USB.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ arch/arm/mach-rockchip/Kconfig          |  9 +++++++++
+ arch/arm/mach-rockchip/spl-boot-order.c |  6 +++++-
+ arch/arm/mach-rockchip/spl.c            | 15 +++++++++++++++
+ 3 files changed, 29 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/mach-rockchip/Kconfig b/arch/arm/mach-rockchip/Kconfig
+index 2a52aa19..09d0c1c8 100644
+--- a/arch/arm/mach-rockchip/Kconfig
++++ b/arch/arm/mach-rockchip/Kconfig
+@@ -652,6 +652,15 @@ config ROCKCHIP_EXTERNAL_TPL
+ 	  Enable this option and build with ROCKCHIP_TPL=/path/to/ddr.bin to
+ 	  include the external TPL in the image built by binman.
+ 
++config SPL_ROCKCHIP_MASKROM_FALLBACK
++	bool "Enter maskrom mode if SPL cannot boot anything"
++	depends on SPL && ROCKCHIP_BOOT_MODE_REG != 0 && SPL_SYSRESET
++	help
++	  Append a last-resort entry to the SPL boot order that sets the
++	  BOOT_BROM_DOWNLOAD flag and resets, so the BootROM enters USB
++	  download (maskrom) mode instead of SPL hanging, ready to be
++	  reflashed over USB.
++
+ config CMD_ROCKCHIP_MASKROM
+ 	bool "Add 'maskrom' command"
+ 	depends on CMDLINE && ROCKCHIP_BOOT_MODE_REG != 0
+diff --git a/arch/arm/mach-rockchip/spl-boot-order.c b/arch/arm/mach-rockchip/spl-boot-order.c
+index f87144c3..c7223964 100644
+--- a/arch/arm/mach-rockchip/spl-boot-order.c
++++ b/arch/arm/mach-rockchip/spl-boot-order.c
+@@ -176,7 +176,11 @@ void board_boot_order(u32 *spl_boot_list)
+ 
+ 	/* If we had no matches, fall back to spl_boot_device */
+ 	if (idx == 0)
+-		spl_boot_list[0] = spl_boot_device();
++		spl_boot_list[idx++] = spl_boot_device();
++
++	/* Last resort: enter BootROM USB download (maskrom) mode */
++	if (CONFIG_IS_ENABLED(ROCKCHIP_MASKROM_FALLBACK))
++		spl_boot_list[idx++] = BOOT_DEVICE_BOARD;
+ }
+ 
+ int spl_decode_boot_device(u32 boot_device, char *buf, size_t buflen)
+diff --git a/arch/arm/mach-rockchip/spl.c b/arch/arm/mach-rockchip/spl.c
+index e989c148..6d6c0d6d 100644
+--- a/arch/arm/mach-rockchip/spl.c
++++ b/arch/arm/mach-rockchip/spl.c
+@@ -14,6 +14,7 @@
+ #include <mapmem.h>
+ #include <ram.h>
+ #include <spl.h>
++#include <asm/arch-rockchip/boot_mode.h>
+ #include <asm/arch-rockchip/bootrom.h>
+ #include <asm/arch-rockchip/timer.h>
+ #include <asm/global_data.h>
+@@ -201,3 +202,17 @@ static int ramboot_load_image(struct spl_image_info *spl_image,
+ /* Use priority and method name that sort before default spl_ram_load_image */
+ SPL_LOAD_IMAGE_METHOD("RAM", 0, BOOT_DEVICE_RAM, ramboot_load_image);
+ #endif
++
++#if CONFIG_IS_ENABLED(ROCKCHIP_MASKROM_FALLBACK)
++static int maskrom_fallback_load_image(struct spl_image_info *spl_image,
++				       struct spl_boot_device *bootdev)
++{
++	printf("SPL: no bootable image, entering maskrom (USB download) mode\n");
++	writel(BOOT_BROM_DOWNLOAD, CONFIG_ROCKCHIP_BOOT_MODE_REG);
++	reset_cpu();
++
++	return -ENODEV;
++}
++SPL_LOAD_IMAGE_METHOD("MASKROM", 0, BOOT_DEVICE_BOARD,
++		      maskrom_fallback_load_image);
++#endif

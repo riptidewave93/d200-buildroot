@@ -1,0 +1,3 @@
+# USB functions, in interface order: hid, raw (config channel), ncm (USB Ethernet),
+# msc (read-only drive, keep last).
+USB_FUNCTIONS="hid raw ncm msc"

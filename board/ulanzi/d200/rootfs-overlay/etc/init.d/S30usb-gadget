@@ -1,0 +1,170 @@
+#!/bin/sh
+#
+# USB gadget on the USB-C port: one composite device with the functions in
+# /etc/default/usb-gadget, plus the USB Ethernet address and its DHCP server.
+#
+
+USB_FUNCTIONS="hid raw ncm msc"
+[ -r /etc/default/usb-gadget ] && . /etc/default/usb-gadget
+
+G=/sys/kernel/config/usb_gadget/d200
+DEV_IP=172.31.254.1/30
+PEER_IP=172.31.254.2
+UDHCPD_CONF=/tmp/udhcpd-usb.conf
+UDHCPD_PID=/var/run/udhcpd-usb.pid
+USB_DRIVE=/usr/share/d200/usb-drive.img
+
+# CPU serial, passed on by U-Boot
+serial() {
+	s=$(tr -d '\0' < /proc/device-tree/serial-number 2>/dev/null)
+	echo "${s:-0000000000000000}"
+}
+
+# stable, locally administered MAC address from the serial; $1 = first byte
+mac() {
+	serial | md5sum | sed "s/^\(..\)\(..\)\(..\)\(..\)\(..\).*/$1:\1:\2:\3:\4:\5/"
+}
+
+add_function() {
+	case "$1" in
+	hid)
+		f=functions/hid.usb0
+		mkdir $f
+		# deckd owns the HID report descriptor
+		if ! /usr/bin/deckd hid-descriptor > /tmp/hid-report-desc ||
+		   [ ! -s /tmp/hid-report-desc ]; then
+			echo "usb-gadget: no HID report descriptor, skipping hid" >&2
+			rmdir $f
+			return
+		fi
+		echo 0 > $f/subclass		# report IDs: no boot protocol
+		echo 0 > $f/protocol
+		echo 9 > $f/report_length	# longest report incl. its ID
+		cat /tmp/hid-report-desc > $f/report_desc
+		rm -f /tmp/hid-report-desc
+		# LED reports over the control endpoint: the USB controller has one
+		# RX FIFO for all OUT endpoints, so one nobody reads stalls them all
+		echo 1 > $f/no_out_endpoint
+		;;
+	raw)
+		# config channel for the website (WebHID) and the PC app
+		f=functions/hid.usb1
+		mkdir $f
+		if ! /usr/bin/deckd raw-descriptor > /tmp/raw-report-desc ||
+		   [ ! -s /tmp/raw-report-desc ]; then
+			echo "usb-gadget: no raw HID report descriptor, skipping raw" >&2
+			rmdir $f
+			return
+		fi
+		echo 0 > $f/subclass
+		echo 0 > $f/protocol
+		echo 64 > $f/report_length	# input reports
+		cat /tmp/raw-report-desc > $f/report_desc
+		rm -f /tmp/raw-report-desc
+		echo 1 > $f/no_out_endpoint	# output reports by SET_REPORT, as for hid
+		;;
+	ncm)
+		f=functions/ncm.usb0
+		mkdir $f
+		mac 06 > $f/host_addr
+		mac 02 > $f/dev_addr
+		# Windows loads its NCM driver for this compatible ID
+		echo WINNCM > $f/os_desc/interface.ncm/compatible_id
+		;;
+	msc)
+		f=functions/mass_storage.usb0
+		mkdir $f
+		echo 1 > $f/lun.0/removable
+		echo 1 > $f/lun.0/ro
+		echo "Ulanzi  D200 Stream Deck0100" > $f/lun.0/inquiry_string
+		echo $USB_DRIVE > $f/lun.0/file
+		;;
+	*)
+		echo "usb-gadget: unknown function $1" >&2
+		return
+		;;
+	esac
+	ln -s $f configs/c.1/
+}
+
+start_network() {
+	ifname=$(cat $G/functions/ncm.usb0/ifname)
+	ip addr add $DEV_IP brd + dev "$ifname"
+	ip link set "$ifname" up
+	cat > $UDHCPD_CONF <<-EOF
+		interface $ifname
+		start $PEER_IP
+		end $PEER_IP
+		max_leases 1
+		lease_file /tmp/udhcpd-usb.leases
+		pidfile $UDHCPD_PID
+		option subnet 255.255.255.252
+		option lease 86400
+	EOF
+	touch /tmp/udhcpd-usb.leases
+	udhcpd $UDHCPD_CONF
+}
+
+start() {
+	printf "Starting USB gadget: "
+	mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
+	[ -d $G ] && { echo "already set up"; return 0; }
+
+	mkdir $G && cd $G || { echo "FAIL"; return 1; }
+	echo 0x1d6b > idVendor		# Linux Foundation
+	echo 0x0104 > idProduct		# Multifunction Composite Gadget
+	echo 0x0101 > bcdDevice		# USB descriptor layout version
+	echo 0x0200 > bcdUSB
+	# composite device with interface association descriptors
+	echo 0xef > bDeviceClass
+	echo 0x02 > bDeviceSubClass
+	echo 0x01 > bDeviceProtocol
+	mkdir strings/0x409
+	echo Ulanzi > strings/0x409/manufacturer
+	echo D200 > strings/0x409/product
+	serial > strings/0x409/serialnumber
+
+	mkdir configs/c.1 configs/c.1/strings/0x409
+	echo D200 > configs/c.1/strings/0x409/configuration
+	echo 500 > configs/c.1/MaxPower
+	# Microsoft OS descriptors, for the WINNCM compatible ID
+	echo 1 > os_desc/use
+	echo 0xcd > os_desc/b_vendor_code
+	echo MSFT100 > os_desc/qw_sign
+	ln -s configs/c.1 os_desc/
+
+	for f in $USB_FUNCTIONS; do
+		add_function "$f"
+	done
+
+	ls /sys/class/udc | head -n 1 > UDC || { echo "FAIL"; return 1; }
+	[ -d functions/ncm.usb0 ] && start_network
+	echo "OK"
+}
+
+stop() {
+	printf "Stopping USB gadget: "
+	[ -f $UDHCPD_PID ] && kill "$(cat $UDHCPD_PID)" 2>/dev/null
+	rm -f $UDHCPD_PID
+	[ -d $G ] || { echo "OK"; return 0; }
+	cd $G || return 1
+	echo "" > UDC 2>/dev/null
+	rm -f os_desc/c.1 configs/c.1/*.*
+	for f in functions/*; do
+		rmdir "$f"
+	done
+	rmdir configs/c.1/strings/0x409 configs/c.1 strings/0x409
+	cd / && rmdir $G
+	echo "OK"
+}
+
+case "$1" in
+	start|stop)
+		"$1";;
+	restart|reload)
+		stop
+		start;;
+	*)
+		echo "Usage: $0 {start|stop|restart|reload}"
+		exit 1
+esac

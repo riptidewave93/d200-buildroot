@@ -1,0 +1,66 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 10:08:55 -0500
+Subject: [PATCH] rockchip: spl: support booting from SPI NAND
+
+Map nodes with a "spi-nand" compatible to BOOT_DEVICE_NAND when the
+minimal SPL SPI NAND loader is enabled, so 'same-as-spl' and explicit
+u-boot,spl-boot-order entries work for SPI NAND, and decode
+BOOT_DEVICE_NAND back to the node path for u-boot,spl-boot-device.
+
+On RK3308 the BootROM reports SPI NAND boot as BROM_BOOTSOURCE_SPINAND;
+map it to the SFC flash node.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ arch/arm/mach-rockchip/rk3308/rk3308.c  |  1 +
+ arch/arm/mach-rockchip/spl-boot-order.c | 17 +++++++++++++++++
+ 2 files changed, 18 insertions(+)
+
+diff --git a/arch/arm/mach-rockchip/rk3308/rk3308.c b/arch/arm/mach-rockchip/rk3308/rk3308.c
+index 6916f1a2..165abea5 100644
+--- a/arch/arm/mach-rockchip/rk3308/rk3308.c
++++ b/arch/arm/mach-rockchip/rk3308/rk3308.c
+@@ -100,6 +100,7 @@ enum {
+ const char * const boot_devices[BROM_LAST_BOOTSOURCE + 1] = {
+ 	[BROM_BOOTSOURCE_EMMC] = "/mmc@ff490000",
+ 	[BROM_BOOTSOURCE_SPINOR] = "/spi@ff4c0000/flash@0",
++	[BROM_BOOTSOURCE_SPINAND] = "/spi@ff4c0000/flash@0",
+ 	[BROM_BOOTSOURCE_SD] = "/mmc@ff480000",
+ };
+ 
+diff --git a/arch/arm/mach-rockchip/spl-boot-order.c b/arch/arm/mach-rockchip/spl-boot-order.c
+index d2dd5e10..f87144c3 100644
+--- a/arch/arm/mach-rockchip/spl-boot-order.c
++++ b/arch/arm/mach-rockchip/spl-boot-order.c
+@@ -79,6 +79,14 @@ static int spl_node_to_boot_device(int node)
+ 	if (!uclass_find_device_by_of_offset(UCLASS_UFS, node, &parent))
+ 		return BOOT_DEVICE_UFS;
+ 
++	/*
++	 * SPI NAND is not a UCLASS_SPI_FLASH device; SPL loads from it with
++	 * the minimal BOOT_DEVICE_NAND loader (SPL_SPI_NAND_LOAD).
++	 */
++	if (CONFIG_IS_ENABLED(SPI_NAND_LOAD) &&
++	    !fdt_node_check_compatible(gd->fdt_blob, node, "spi-nand"))
++		return BOOT_DEVICE_NAND;
++
+ 	return -1;
+ }
+ 
+@@ -234,6 +242,15 @@ int spl_decode_boot_device(u32 boot_device, char *buf, size_t buflen)
+ 		return -ENODEV;
+ 	}
+ 
++	if (CONFIG_IS_ENABLED(SPI_NAND_LOAD) && boot_device == BOOT_DEVICE_NAND) {
++		ofnode node = ofnode_by_compatible(ofnode_null(), "spi-nand");
++
++		if (!ofnode_valid(node))
++			return -ENODEV;
++
++		return ofnode_get_path(node, buf, buflen);
++	}
++
+ 	if (boot_device == BOOT_DEVICE_UFS) {
+ 		ret = uclass_find_device(UCLASS_UFS, 0, &dev);
+ 		if (ret) {

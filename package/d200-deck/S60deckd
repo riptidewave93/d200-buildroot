@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# deckd: the key app (screen + USB HID). Logs go to syslog.
+#
+
+PIDFILE=/var/run/deckd.pid
+
+start() {
+	printf "Starting deckd: "
+	start-stop-daemon -S -q -b -m -p $PIDFILE -x /bin/sh -- \
+		-c 'exec /usr/bin/deckd 2>&1 | logger -t deckd'
+	[ $? = 0 ] && echo "OK" || echo "FAIL"
+}
+
+stop() {
+	printf "Stopping deckd: "
+	killall deckd 2>/dev/null
+	# the display stays busy until deckd has exited
+	while pidof deckd >/dev/null; do sleep 0.1; done
+	rm -f $PIDFILE
+	echo "OK"
+}
+
+case "$1" in
+	start|stop)
+		"$1";;
+	restart|reload)
+		stop
+		start;;
+	*)
+		echo "Usage: $0 {start|stop|restart|reload}"
+		exit 1
+esac

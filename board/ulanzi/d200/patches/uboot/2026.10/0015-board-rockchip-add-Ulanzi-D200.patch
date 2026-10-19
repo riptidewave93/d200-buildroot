@@ -1,0 +1,449 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 10:09:12 -0500
+Subject: [PATCH] board: rockchip: add Ulanzi D200
+
+Add U-Boot support for the Ulanzi D200 (RK3308B-S), with its own board
+target and config header.
+
+- SPL loads U-Boot from SPI NAND (raw "u-boot" partition, falling back
+  to "u-boot-backup"). SFC DMA is disabled in SPL since it cannot write
+  to SRAM, where part of TF-A is loaded.
+- If SPL cannot boot anything it enters maskrom mode, as it does on
+  Ctrl-B on the console during power on; the 'maskrom' command does
+  the same from U-Boot.
+- The DesignWare watchdog may already be running when U-Boot starts
+  (USB boot path, ~21 s), so WDT support is enabled to service it.
+- serial# and cpuid# are derived from the CPU ID in OTP (MISC_INIT_R).
+- Display: RK3308 VOP + command-sequence panel + PWM backlight,
+  with the VOP bound before relocation so the framebuffer is reserved.
+- The console defaults to the UART only: the panel sits behind the keys,
+  so only the boot logo is shown on it. The board code probes the
+  display itself, since the console no longer does.
+- Optional user splash: if the "ubi" partition has a volume named
+  "splash" holding a BMP, it is shown centred instead of the built-in
+  logo; anything missing or invalid keeps the built-in logo.
+- The environment lives in the "ubi" partition (redundant volumes
+  env/env_r, created on first saveenv, fastmap enabled).
+- Fastboot over USB (own product ID 0x0006, 32 MiB buffer at
+  0x02000000 to fit the 128 MiB of RAM, 'oem run' and 'oem console'),
+  flashing the SPI NAND partitions and the UBI volumes by name.
+- Linux is booted from the UBI volume "kernel", holding a FIT image
+  (kernel + device tree): ubi read + bootm. The kernel's built-in
+  command line is used unless "bootargs" is set.
+- preboot is enabled, so a reboot into the fastboot boot mode (e.g.
+  "reboot fastboot" with the Linux syscon reboot-mode driver) starts
+  fastboot.
+- A maskrom USB boot image is built for development
+  (u-boot-rockchip-usb471.bin / usb472.bin).
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi   |  50 +++++++
+ arch/arm/mach-rockchip/rk3308/Kconfig         |   5 +
+ board/ulanzi/d200/Kconfig                     |  12 ++
+ board/ulanzi/d200/MAINTAINERS                 |   8 ++
+ board/ulanzi/d200/Makefile                    |   3 +
+ board/ulanzi/d200/d200.c                      |  97 ++++++++++++++
+ configs/ulanzi-d200-rk3308_defconfig          | 123 ++++++++++++++++++
+ .../src/arm64/rockchip/rk3308-ulanzi-d200.dts |   6 +
+ include/configs/ulanzi_d200.h                 |  17 +++
+ 9 files changed, 321 insertions(+)
+ create mode 100644 arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi
+ create mode 100644 board/ulanzi/d200/Kconfig
+ create mode 100644 board/ulanzi/d200/MAINTAINERS
+ create mode 100644 board/ulanzi/d200/Makefile
+ create mode 100644 board/ulanzi/d200/d200.c
+ create mode 100644 configs/ulanzi-d200-rk3308_defconfig
+ create mode 100644 include/configs/ulanzi_d200.h
+
+diff --git a/arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi b/arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi
+new file mode 100644
+index 00000000..3bec9cd0
+--- /dev/null
++++ b/arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi
+@@ -0,0 +1,50 @@
++// SPDX-License-Identifier: GPL-2.0+
++
++#include "rk3308-u-boot.dtsi"
++
++&uart2 {
++	bootph-all;
++	clock-frequency = <24000000>;
++};
++
++&uart2m1_xfer {
++	bootph-all;
++};
++
++/* SPL loads U-Boot proper from SPI NAND */
++&sfc {
++	bootph-pre-ram;
++	bootph-some-ram;
++	/* SFC DMA cannot write to SRAM, where parts of TF-A get loaded */
++	u-boot,spl-sfc-no-dma;
++};
++
++&sfc_clk {
++	bootph-pre-ram;
++	bootph-some-ram;
++};
++
++&sfc_cs0 {
++	bootph-pre-ram;
++	bootph-some-ram;
++};
++
++&sfc_bus4 {
++	bootph-pre-ram;
++	bootph-some-ram;
++};
++
++&{/spi@ff4c0000/flash@0} {
++	bootph-pre-ram;
++	bootph-some-ram;
++};
++
++/* Bind before relocation so the framebuffer gets reserved */
++&vop {
++	bootph-some-ram;
++};
++
++/* The PWM regulator driver needs a start voltage: the vendor boot value */
++&vdd_core {
++	regulator-init-microvolt = <1015000>;
++};
+diff --git a/arch/arm/mach-rockchip/rk3308/Kconfig b/arch/arm/mach-rockchip/rk3308/Kconfig
+index 540ddc93..bdc8ee31 100644
+--- a/arch/arm/mach-rockchip/rk3308/Kconfig
++++ b/arch/arm/mach-rockchip/rk3308/Kconfig
+@@ -8,6 +8,10 @@ config TARGET_ROC_RK3308_CC
+ 	bool "Firefly roc-rk3308-cc"
+ 	select BOARD_LATE_INIT
+ 
++config TARGET_ULANZI_D200
++	bool "Ulanzi D200"
++	select BOARD_LATE_INIT
++
+ config ROCKCHIP_BOOT_MODE_REG
+ 	default 0xff000500
+ 
+@@ -19,5 +23,6 @@ config SYS_SOC
+ 
+ source "board/rockchip/evb_rk3308/Kconfig"
+ source "board/firefly/firefly-rk3308/Kconfig"
++source "board/ulanzi/d200/Kconfig"
+ 
+ endif
+diff --git a/board/ulanzi/d200/Kconfig b/board/ulanzi/d200/Kconfig
+new file mode 100644
+index 00000000..ddd9b974
+--- /dev/null
++++ b/board/ulanzi/d200/Kconfig
+@@ -0,0 +1,12 @@
++if TARGET_ULANZI_D200
++
++config SYS_BOARD
++	default "d200"
++
++config SYS_VENDOR
++	default "ulanzi"
++
++config SYS_CONFIG_NAME
++	default "ulanzi_d200"
++
++endif
+diff --git a/board/ulanzi/d200/MAINTAINERS b/board/ulanzi/d200/MAINTAINERS
+new file mode 100644
+index 00000000..d265dd7d
+--- /dev/null
++++ b/board/ulanzi/d200/MAINTAINERS
+@@ -0,0 +1,8 @@
++ULANZI D200
++M:	Chris Blake <chrisrblake93@gmail.com>
++S:	Maintained
++F:	board/ulanzi/d200/
++F:	configs/ulanzi-d200-rk3308_defconfig
++F:	include/configs/ulanzi_d200.h
++F:	arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi
++F:	dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
+diff --git a/board/ulanzi/d200/Makefile b/board/ulanzi/d200/Makefile
+new file mode 100644
+index 00000000..d43f1ba4
+--- /dev/null
++++ b/board/ulanzi/d200/Makefile
+@@ -0,0 +1,3 @@
++# SPDX-License-Identifier: GPL-2.0+
++
++obj-y	+= d200.o
+diff --git a/board/ulanzi/d200/d200.c b/board/ulanzi/d200/d200.c
+new file mode 100644
+index 00000000..54a728b9
+--- /dev/null
++++ b/board/ulanzi/d200/d200.c
+@@ -0,0 +1,97 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Ulanzi D200
++ */
++
++#include <dm.h>
++#include <log.h>
++#include <malloc.h>
++#include <mapmem.h>
++#include <splash.h>
++#include <video.h>
++#include <linux/sizes.h>
++
++#if IS_ENABLED(CONFIG_CMD_UBI)
++#include <ubi_uboot.h>
++
++#define D200_SPLASH_UBI_PART	"ubi"
++#define D200_SPLASH_VOLUME	"splash"
++#define D200_SPLASH_MAX_SIZE	SZ_8M
++
++/*
++ * Optional user splash: if the "ubi" partition holds a UBI volume named
++ * "splash" containing a BMP, show it centred on the (landscape) screen
++ * instead of the built-in logo. Anything missing or invalid keeps the
++ * built-in logo.
++ */
++static void d200_show_ubi_splash(struct udevice *dev)
++{
++	struct ubi_volume *vol;
++	size_t size;
++	u8 *buf;
++	int ret;
++
++	if (ubi_part(D200_SPLASH_UBI_PART, NULL))
++		return;
++
++	vol = ubi_find_volume(D200_SPLASH_VOLUME);
++	if (!vol)
++		return;
++
++	size = vol->used_bytes;
++	if (size < 54 || size > D200_SPLASH_MAX_SIZE) {
++		log_warning("splash: volume size %zu not supported\n", size);
++		return;
++	}
++
++	buf = malloc(size);
++	if (!buf)
++		return;
++
++	ret = ubi_volume_read(D200_SPLASH_VOLUME, buf, 0, size);
++	if (ret || buf[0] != 'B' || buf[1] != 'M') {
++		log_warning("splash: volume does not hold a BMP (%d)\n", ret);
++		goto out;
++	}
++
++	video_clear(dev);
++	ret = video_bmp_display(dev, map_to_sysmem(buf), BMP_ALIGN_CENTER,
++				BMP_ALIGN_CENTER, true);
++	if (ret) {
++		log_warning("splash: cannot display BMP (%d), using built-in logo\n",
++			    ret);
++		video_clear(dev);
++		if (IS_ENABLED(CONFIG_VIDEO_LOGO))
++			video_bmp_display(dev,
++					  map_to_sysmem(video_get_u_boot_logo()),
++					  -4, 4, true);
++	}
++	video_sync(dev, true);
++
++out:
++	free(buf);
++}
++#else
++static inline void d200_show_ubi_splash(struct udevice *dev) {}
++#endif
++
++/*
++ * The console is on the UART only, so nothing would probe the display.
++ * Probe it here so the panel comes up and shows the boot logo (built-in,
++ * or the optional splash from UBI).
++ */
++int rk_board_late_init(void)
++{
++	struct udevice *dev;
++	int ret;
++
++	ret = uclass_first_device_err(UCLASS_VIDEO, &dev);
++	if (ret) {
++		log_warning("display: probe failed: %d\n", ret);
++		return 0;
++	}
++
++	d200_show_ubi_splash(dev);
++
++	return 0;
++}
+diff --git a/configs/ulanzi-d200-rk3308_defconfig b/configs/ulanzi-d200-rk3308_defconfig
+new file mode 100644
+index 00000000..87e6a68f
+--- /dev/null
++++ b/configs/ulanzi-d200-rk3308_defconfig
+@@ -0,0 +1,123 @@
++CONFIG_ARM=y
++CONFIG_SKIP_LOWLEVEL_INIT=y
++CONFIG_COUNTER_FREQUENCY=24000000
++CONFIG_ARCH_ROCKCHIP=y
++CONFIG_DEFAULT_DEVICE_TREE="rockchip/rk3308-ulanzi-d200"
++CONFIG_DM_RESET=y
++CONFIG_ROCKCHIP_RK3308=y
++CONFIG_TARGET_ULANZI_D200=y
++CONFIG_SYS_LOAD_ADDR=0xc00800
++CONFIG_DEBUG_UART_BASE=0xFF0C0000
++CONFIG_DEBUG_UART_CLOCK=24000000
++# CONFIG_DEBUG_UART_BOARD_INIT is not set
++CONFIG_DEBUG_UART=y
++CONFIG_ANDROID_BOOT_IMAGE=y
++CONFIG_FIT=y
++CONFIG_FIT_VERBOSE=y
++CONFIG_BOOTCOMMAND="ubi part ubi && ubi read ${kernel_addr_r} kernel && bootm ${kernel_addr_r}"
++# CONFIG_BOOTSTD_BOOTCOMMAND is not set
++CONFIG_USE_PREBOOT=y
++CONFIG_DEFAULT_FDT_FILE="rockchip/rk3308-ulanzi-d200.dtb"
++# CONFIG_DISPLAY_CPUINFO is not set
++CONFIG_SPL_MAX_SIZE=0x40000
++# CONFIG_SPL_RAW_IMAGE_SUPPORT is not set
++CONFIG_CMD_GPIO=y
++CONFIG_CMD_GPT=y
++CONFIG_CMD_MMC=y
++CONFIG_CMD_USB=y
++CONFIG_CMD_ROCKUSB=y
++CONFIG_CMD_USB_MASS_STORAGE=y
++CONFIG_CMD_RNG=y
++CONFIG_CMD_KASLRSEED=y
++CONFIG_CMD_REGULATOR=y
++CONFIG_SPL_OF_CONTROL=y
++CONFIG_OF_LIVE=y
++CONFIG_OF_SPL_REMOVE_PROPS="clock-names interrupt-parent assigned-clocks assigned-clock-rates assigned-clock-parents"
++CONFIG_ENV_RELOC_GD_ENV_ADDR=y
++CONFIG_SYSCON=y
++CONFIG_CLK=y
++CONFIG_ROCKCHIP_GPIO=y
++CONFIG_SYS_I2C_ROCKCHIP=y
++CONFIG_MMC_DW=y
++CONFIG_MMC_DW_ROCKCHIP=y
++CONFIG_PHY_ROCKCHIP_INNO_USB2=y
++CONFIG_PINCTRL=y
++CONFIG_REGULATOR_PWM=y
++CONFIG_DM_REGULATOR_FIXED=y
++CONFIG_PWM_ROCKCHIP=y
++CONFIG_RAM=y
++CONFIG_BAUDRATE=1500000
++CONFIG_DEBUG_UART_SHIFT=2
++CONFIG_SYS_NS16550_MEM32=y
++CONFIG_SYSINFO=y
++CONFIG_SYSRESET=y
++CONFIG_USB=y
++CONFIG_DM_USB_GADGET=y
++CONFIG_USB_EHCI_HCD=y
++CONFIG_USB_EHCI_GENERIC=y
++CONFIG_USB_GADGET=y
++CONFIG_USB_GADGET_DWC2_OTG=y
++CONFIG_USB_GADGET_DOWNLOAD=y
++CONFIG_USB_FUNCTION_ROCKUSB=y
++CONFIG_LZO=y
++CONFIG_ERRNO_STR=y
++# --- D200 additions ---
++CONFIG_ROCKCHIP_MASKROM_IMAGE=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_SPI_MEM=y
++CONFIG_ROCKCHIP_SFC=y
++CONFIG_MTD=y
++CONFIG_DM_MTD=y
++CONFIG_MTD_SPI_NAND=y
++CONFIG_CMD_MTD=y
++CONFIG_CMD_MEMINFO=y
++CONFIG_CMD_CLK=y
++CONFIG_CMD_PINMUX=y
++CONFIG_CMD_MEMTEST=y
++CONFIG_WDT=y
++CONFIG_DESIGNWARE_WATCHDOG=y
++CONFIG_CMD_WDT=y
++CONFIG_CMD_MISC=y
++CONFIG_SPL_SPI=y
++CONFIG_SPL_DM_SPI=y
++CONFIG_SPL_SPI_NAND_LOAD=y
++CONFIG_SPL_SPI_NAND_U_BOOT_OFFS=0x100000
++CONFIG_SPL_SPI_NAND_U_BOOT_OFFS_REDUND=0x500000
++CONFIG_MTD_PARTITIONS=y
++CONFIG_CMD_UBI=y
++CONFIG_MTD_UBI=y
++CONFIG_CMD_ROCKCHIP_MASKROM=y
++CONFIG_SPL_ROCKCHIP_MASKROM_FALLBACK=y
++CONFIG_VIDEO=y
++CONFIG_VIDEO_LOGO=y
++CONFIG_VIDEO_ROCKCHIP=y
++CONFIG_VIDEO_ROCKCHIP_MAX_XRES=720
++CONFIG_VIDEO_ROCKCHIP_MAX_YRES=1280
++CONFIG_PANEL=y
++CONFIG_VIDEO_ROCKCHIP_CMD_PANEL=y
++CONFIG_BACKLIGHT_PWM=y
++CONFIG_DM_PWM=y
++CONFIG_CONSOLE_MUX=y
++CONFIG_CMD_BMP=y
++# CONFIG_ENV_IS_NOWHERE is not set
++CONFIG_ENV_IS_IN_UBI=y
++CONFIG_ENV_UBI_PART="ubi"
++CONFIG_ENV_UBI_VOLUME="env"
++CONFIG_ENV_UBI_VOLUME_REDUND="env_r"
++CONFIG_ENV_UBI_VOLUME_CREATE=y
++CONFIG_ENV_REDUNDANT=y
++CONFIG_MTD_UBI_FASTMAP=y
++CONFIG_CYCLIC_MAX_CPU_TIME_US=25000
++CONFIG_SPL_ROCKCHIP_MASKROM_KEY=y
++CONFIG_USB_GADGET_PRODUCT_NUM=0x0006
++CONFIG_USB_FUNCTION_FASTBOOT=y
++CONFIG_FASTBOOT_BUF_ADDR=0x02000000
++CONFIG_FASTBOOT_BUF_SIZE=0x02000000
++CONFIG_FASTBOOT_FLASH=y
++CONFIG_FASTBOOT_FLASH_MTD=y
++CONFIG_FASTBOOT_FLASH_MTD_UBI=y
++CONFIG_FASTBOOT_FLASH_MTD_UBI_PART="ubi"
++CONFIG_FASTBOOT_OEM_RUN=y
++CONFIG_CONSOLE_RECORD=y
++CONFIG_FASTBOOT_CMD_OEM_CONSOLE=y
+diff --git a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
+index 91807a35..a7349dae 100644
+--- a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
++++ b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
+@@ -367,5 +367,11 @@
+ 
+ &usb20_otg {
+ 	dr_mode = "peripheral";
++	/*
++	 * FIFO split from the vendor firmware: a larger RX FIFO than the
++	 * rk3308.dtsi default; without it OUT transfers stall in device mode.
++	 */
++	g-rx-fifo-size = <340>;
++	g-tx-fifo-size = <256 128 128 16 16 16>;
+ 	status = "okay";
+ };
+diff --git a/include/configs/ulanzi_d200.h b/include/configs/ulanzi_d200.h
+new file mode 100644
+index 00000000..378fc2ba
+--- /dev/null
++++ b/include/configs/ulanzi_d200.h
+@@ -0,0 +1,17 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++
++#ifndef __ULANZI_D200_H
++#define __ULANZI_D200_H
++
++#include <configs/rk3308_common.h>
++
++/*
++ * Console on UART only: the panel sits behind the keys, so only the boot
++ * logo (placed in the large bottom-right key) is shown on screen.
++ * "setenv stdout serial,vidconsole" puts the console on the panel too.
++ */
++#define ROCKCHIP_DEVICE_SETTINGS \
++			"stdout=serial\0" \
++			"stderr=serial\0"
++
++#endif

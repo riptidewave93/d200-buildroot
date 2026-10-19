@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 18:07:12 -0500
+Subject: [PATCH] drm/rockchip: rgb: use the connector type of the panel
+
+The parallel RGB output always registers its panel bridge as LVDS, so
+parallel RGB panels show up as LVDS connectors. Use the connector type
+the panel reports, and keep LVDS for panels that do not report one.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ drivers/gpu/drm/rockchip/rockchip_rgb.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/rockchip/rockchip_rgb.c b/drivers/gpu/drm/rockchip/rockchip_rgb.c
+index add3123e5..abef4b218 100644
+--- a/drivers/gpu/drm/rockchip/rockchip_rgb.c
++++ b/drivers/gpu/drm/rockchip/rockchip_rgb.c
+@@ -138,6 +138,7 @@ struct rockchip_rgb *rockchip_rgb_init(struct device *dev,
+ 
+ 	if (panel) {
+ 		bridge = drm_panel_bridge_add_typed(panel,
++						    panel->connector_type ?:
+ 						    DRM_MODE_CONNECTOR_LVDS);
+ 		if (IS_ERR(bridge))
+ 			return ERR_CAST(bridge);

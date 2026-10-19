@@ -1,0 +1,102 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Sun, 18 Oct 2026 18:31:50 -0500
+Subject: [PATCH] arm64: dts: rockchip: add RK3308B-S SoC variant
+
+The RK3308B-S runs at lower voltages than the RK3308 and has a
+different TSADC. Add a SoC dtsi for it on top of rk3308.dtsi with:
+
+- the RK3308B-S operating points; 1008 MHz and 1104 MHz are left
+  disabled, as in the vendor firmware.
+- the TSADC and a thermal zone that throttles the CPU at 90 C, with a
+  critical trip at 115 C and the hardware shutdown at 120 C.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ dts/upstream/src/arm64/rockchip/rk3308bs.dtsi | 77 +++++++++++++++++++
+ 1 file changed, 77 insertions(+)
+ create mode 100644 dts/upstream/src/arm64/rockchip/rk3308bs.dtsi
+
+diff --git a/dts/upstream/src/arm64/rockchip/rk3308bs.dtsi b/dts/upstream/src/arm64/rockchip/rk3308bs.dtsi
+new file mode 100644
+index 00000000..28457dcf
+--- /dev/null
++++ b/dts/upstream/src/arm64/rockchip/rk3308bs.dtsi
+@@ -0,0 +1,77 @@
++// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++
++#include "rk3308.dtsi"
++
++/ {
++	thermal-zones {
++		soc_thermal: soc-thermal {
++			polling-delay-passive = <100>;
++			polling-delay = <1000>;
++			thermal-sensors = <&tsadc 0>;
++
++			trips {
++				soc_alert: soc-alert {
++					temperature = <90000>;
++					hysteresis = <2000>;
++					type = "passive";
++				};
++
++				soc_crit: soc-crit {
++					temperature = <115000>;
++					hysteresis = <2000>;
++					type = "critical";
++				};
++			};
++
++			cooling-maps {
++				map0 {
++					trip = <&soc_alert>;
++					cooling-device = <&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
++				};
++			};
++		};
++	};
++
++	tsadc: tsadc@ff1f0000 {
++		compatible = "rockchip,rk3308bs-tsadc";
++		reg = <0x0 0xff1f0000 0x0 0x100>;
++		interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
++		assigned-clocks = <&cru SCLK_TSADC>;
++		assigned-clock-rates = <4000000>;
++		clocks = <&cru SCLK_TSADC>, <&cru PCLK_TSADC>;
++		clock-names = "tsadc", "apb_pclk";
++		resets = <&cru SRST_TSADC>;
++		reset-names = "tsadc-apb";
++		#thermal-sensor-cells = <1>;
++		rockchip,hw-tshut-temp = <120000>;
++		rockchip,hw-tshut-mode = <0>;
++		rockchip,hw-tshut-polarity = <1>;
++		status = "disabled";
++	};
++};
++
++&cpu0_opp_table {
++	opp-408000000 {
++		opp-microvolt = <850000 850000 1200000>;
++	};
++
++	opp-600000000 {
++		opp-microvolt = <900000 900000 1200000>;
++	};
++
++	opp-816000000 {
++		opp-microvolt = <1000000 1000000 1200000>;
++	};
++
++	opp-1008000000 {
++		opp-microvolt = <1125000 1125000 1200000>;
++		status = "disabled";
++	};
++
++	opp-1104000000 {
++		opp-hz = /bits/ 64 <1104000000>;
++		opp-microvolt = <1200000 1200000 1200000>;
++		clock-latency-ns = <40000>;
++		status = "disabled";
++	};
++};

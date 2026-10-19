@@ -1,0 +1,122 @@
+#!/bin/sh
+# Flash a Ulanzi D200 over USB fastboot.
+#
+# Get the board into fastboot first: "reboot-to fastboot" on it, hold the
+# top-left key ("Hold for Fastboot") while it boots, or run "fastboot usb 0"
+# on the U-Boot console (debug builds).
+#
+#   flash-fastboot.sh [options] [image-dir]
+#     image-dir       holds the images (default: the script's directory, or
+#                     its build/ subdirectory)
+#     (no option)     full install: U-Boot + the whole UBI partition from
+#                     ubi.img. The U-Boot environment and any splash are reset.
+#     --uboot         update only U-Boot (idbloader.img, u-boot.itb)
+#     --linux         update only Linux: kernel.itb and rootfs.ubifs into their
+#                     UBI volumes, keeping the environment and the splash
+#     --splash <bmp>  also put a boot splash in the "splash" UBI volume
+#     --no-reboot     stay in fastboot when done
+#
+# The BootROM reads up to 4 copies of idbloader.img at 0, 256, 512 and
+# 768 KiB, so the "idbloader" partition gets an image with 4 padded copies.
+set -e
+# UBI volume sizes for --linux, when the volumes don't exist yet (as in ubinize.cfg)
+KERNEL_VOL_SIZE=0x1000000
+ROOTFS_VOL_SIZE=0xa000000
+
+MODE=full; SPLASH=; REBOOT=1; DIR=
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--uboot) MODE=uboot ;;
+	--linux) MODE=linux ;;
+	--splash) SPLASH=$2; shift ;;
+	--no-reboot) REBOOT= ;;
+	-h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+	*) DIR=$1 ;;
+	esac
+	shift
+done
+if [ -z "$DIR" ]; then
+	DIR=$(dirname "$0")
+	[ -f "$DIR/u-boot.itb" ] || DIR=$DIR/build
+fi
+
+case $MODE in
+full)	FILES="idbloader.img u-boot.itb ubi.img" ;;
+uboot)	FILES="idbloader.img u-boot.itb" ;;
+linux)	FILES="kernel.itb rootfs.ubifs" ;;
+esac
+for f in $FILES; do
+	[ -f "$DIR/$f" ] || { echo "missing $DIR/$f" >&2; exit 1; }
+done
+[ -z "$SPLASH" ] || [ -f "$SPLASH" ] || { echo "missing $SPLASH" >&2; exit 1; }
+
+fb() {
+	out=$(fastboot "$@" 2>&1) || { echo "$out" >&2; exit 1; }
+	echo "$out" | grep -v '^Finished' || true
+}
+getvar() {
+	fastboot getvar "$1" 2>&1 | sed -n "s/^$1: //p"
+}
+# size of a partition or UBI volume in bytes, empty if it doesn't exist
+part_size() {
+	getvar "partition-size:$1"
+}
+# (re)create UBI volume $1 ($3 = dynamic/static) so it holds at least $2 bytes
+ensure_vol() {
+	have=$(part_size "$1")
+	if [ -n "$have" ] && [ $((have)) -ge $(($2)) ]; then
+		return
+	fi
+	fb oem run:ubi part ubi
+	[ -n "$have" ] && fb oem run:ubi remove "$1"
+	fb oem run:ubi create "$1" "$(printf 0x%x $(($2)))" "$3"
+}
+
+# make sure this is a D200 running our U-Boot (it has an idbloader partition)
+[ -n "$(part_size idbloader)" ] || { echo "no D200 in fastboot mode found" >&2; exit 1; }
+echo "D200 serial: $(getvar serialno)"
+
+# no sparse images: everything must fit the download buffer
+max=$(getvar max-download-size)
+for f in $FILES; do
+	[ "$(stat -c%s "$DIR/$f")" -le $((max)) ] ||
+		{ echo "$f is larger than the $((max)) byte download buffer" >&2; exit 1; }
+done
+
+if [ $MODE != linux ]; then
+	[ "$(stat -c%s "$DIR/idbloader.img")" -le 262144 ] ||
+		{ echo "idbloader.img larger than 256 KiB" >&2; exit 1; }
+	TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+	head -c 1M /dev/zero | tr '\0' '\377' > "$TMP/idb4.img"	# erased flash is 0xff
+	for i in 0 1 2 3; do
+		dd if="$DIR/idbloader.img" of="$TMP/idb4.img" bs=256K seek=$i conv=notrunc status=none
+	done
+	fb flash u-boot "$DIR/u-boot.itb"
+	fb flash u-boot-backup "$DIR/u-boot.itb"
+	fb flash idbloader "$TMP/idb4.img"
+fi
+
+case $MODE in
+full)
+	fb flash ubi "$DIR/ubi.img"
+	;;
+linux)
+	ensure_vol kernel "$KERNEL_VOL_SIZE" dynamic
+	ensure_vol rootfs "$ROOTFS_VOL_SIZE" dynamic
+	fb flash kernel "$DIR/kernel.itb"
+	fb flash rootfs "$DIR/rootfs.ubifs"
+	;;
+esac
+
+if [ -n "$SPLASH" ]; then
+	# recreate the volume at the image size, so any size fits
+	fb oem run:ubi part ubi
+	[ -n "$(part_size splash)" ] && fb oem run:ubi remove splash
+	fb oem run:ubi create splash "$(printf 0x%x "$(stat -c%s "$SPLASH")")" static
+	fb flash splash "$SPLASH"
+fi
+
+if [ -n "$REBOOT" ]; then
+	fb reboot
+fi
+echo "done"
