@@ -13,6 +13,7 @@ Open-source replacement firmware for the **Ulanzi D200** stream controller.
   back to the previous version by itself.
 - **Recovery keys:** hold a key at power-on to reflash it over USB, without opening it.
 - The screen dims or turns off while the PC sleeps (your choice).
+- Reset to defaults from the website, confirmed on the device.
 
 ## Get it
 
