@@ -53,7 +53,7 @@ bundles only), then the images in write order.
   "format": 1,
   "product": "d200",
   "flavour": "release",
-  "version": "1a2b3c4",
+  "version": "v0.1.0",
   "build_id": 202610191900,
   "min_updater": 1,
   "images": [
