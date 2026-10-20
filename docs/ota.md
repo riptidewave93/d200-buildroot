@@ -25,8 +25,7 @@ The flash partitions and UBI volumes are listed in [flashing.md](flashing.md#nan
 | — | UBI volume `data` (id 6), 100 MiB | `/data`, always mounted; `/data/update` for the incoming bundle |
 
 The volume IDs are fixed (splash is 7). A fresh install has slot A only: the first update creates `kernel_b`
-and `rootfs_b`. A volume can also grow from free UBI space (`UBI_IOCRSVOL`) before it is written, if an image
-ever outgrows it.
+and `rootfs_b`.
 
 ## Boot
 
@@ -49,7 +48,7 @@ empty env; the tools then use the defaults from `/etc/u-boot-initial-env` (`slot
 
 ## Bundle
 
-An uncompressed tar, `d200-<version>-<flavour>-update.tar` in a build's `output/` folder. Members, in order:
+An uncompressed ustar archive, `d200-<version>-<flavour>-update.tar`. Members, in order:
 
 1. `manifest.json`
 2. `manifest.sig`, only in signed bundles
@@ -143,7 +142,7 @@ what was already written; every step is compatible with the running system.
    - If the volume is missing, create it (`UBI_IOCMKVOL` on `/dev/ubi0`, with its fixed ID, type and size from
      the layout table); if it is smaller than the image, grow it (`UBI_IOCRSVOL`).
    - A static volume (the kernel) that already holds the image (its data has the image's size and sha256) is left
-     alone. Kernel builds are reproducible, so most updates write only the rootfs.
+     alone.
    - `UBI_IOCVOLUP` with the image size on `/dev/ubi0_<id>`, write the image, close, read back and compare
      sha256.
    - A volume that fails twice is truncated (`UBI_IOCVOLUP` with size 0).

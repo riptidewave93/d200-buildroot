@@ -1,6 +1,7 @@
 # D200 hardware
 
-The Ulanzi D200 is a stream controller: 14 keys (one double-wide) in front of one LCD, USB-C, no Wi-Fi or Ethernet port.
+The Ulanzi D200 is a stream controller: 14 keys (one double-wide) in front of one LCD, USB-C, no Wi-Fi or Ethernet
+port.
 
 | Part | Details |
 |---|---|

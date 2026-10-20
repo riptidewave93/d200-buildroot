@@ -17,11 +17,21 @@ The kernel has slot A's line built in, for when U-Boot passes none.
 
 ## Kernel
 
-- Patches: `board/ulanzi/d200/patches/linux/7.2.11/`: RK3308 VOP support, a generic `rockchip,cmd-panel` panel
-  driver, RK3308B-S TSADC support, the RK3308 VOP node, the RK3308B-S SoC dtsi (OPPs, TSADC) and the D200 device
-  tree (the same DT files U-Boot uses, [u-boot.md](u-boot.md#patches)), a DWC2 fix so the gadget survives the
-  PC sleeping, DWC2 remote wakeup so a key press can wake the PC, valid HID endpoint descriptors at full speed for
-  reports over 64 bytes, and an HID OUT endpoint that keeps taking data when nobody reads it.
+- Patches, in `board/ulanzi/d200/patches/linux/7.2.11/`:
+
+  | # | Patch | Why |
+  |---|---|---|
+  | 0001-0002 | RK3308 VOP | Display controller support |
+  | 0003-0004 | Ulanzi vendor prefix, D200 board binding | DT bindings |
+  | 0005-0007 | `rockchip,cmd-panel` panel driver, RGB connector type | The panel, initialised over bit-banged SPI |
+  | 0008 | RK3308 VOP node and LCDC pins | |
+  | 0009-0010 | RK3308B-S TSADC | Thermal sensor of this SoC variant |
+  | 0011 | RK3308B-S SoC dtsi | Its OPPs and TSADC |
+  | 0012 | D200 device tree | The same DT files U-Boot uses ([u-boot.md](u-boot.md#patches)) |
+  | 0013 | DWC2: leave L2 on resume | The gadget survives the PC sleeping |
+  | 0014 | DWC2 remote wakeup | A key press can wake the PC |
+  | 0015 | f_hid: wMaxPacketSize per speed | Valid descriptors at full speed for reports over 64 bytes |
+  | 0016 | f_hid: keep the OUT endpoint taking data | An unread OUT endpoint can't stall the other functions |
 - Config: `board/ulanzi/d200/linux.config`, started from `allnoconfig`. Everything is built in, no modules:
   - SoC: clocks, pinctrl, GPIO, UART, watchdog;
   - storage: SPI NAND, UBI, UBIFS (LZO only; the rootfs is built with LZO);
@@ -31,12 +41,12 @@ The kernel has slot A's line built in, for when U-Boot passes none.
   - keys: matrix keypad on evdev;
   - CPU: cpufreq-dt (408/600/816 MHz, `schedutil`) on the PWM `vdd_core` regulator, TSADC thermal zone with CPU
     throttling.
-- To change the config:
+- To change the config (after one `make build`):
   ```bash
   make shell
-  cd BuildEnv/buildroot
-  BR2_EXTERNAL=/repo make linux-menuconfig
-  BR2_EXTERNAL=/repo make linux-update-defconfig    # writes board/ulanzi/d200/linux.config
+  . scripts/buildroot-env.sh release      # or debug
+  br_make linux-menuconfig
+  br_make linux-update-defconfig          # writes board/ulanzi/d200/linux.config
   exit
   make linux-rebuild
   ```
@@ -54,7 +64,7 @@ builds have neither. Services:
 | `S30usb-gadget` | USB functions; USB Ethernet addresses, DHCP server (udhcpd) and IPv6 router advertisements (radvd); the hostname `d200-<serial>`. `apply` applies the USB settings ([USB](#usb)) |
 | `S50dropbear` | Debug builds only. SSH server on USB Ethernet (the only network); root without a password. Includes SFTP, so `scp`/`sftp` work |
 | `S50mdnsd` | mDNS on USB Ethernet: answers for `d200-<serial>.local` and advertises the web server (`_http._tcp`), plus SSH in debug builds |
-| `S60deckd` | `deckd` ([d200-deck](https://github.com/riptidewave93/d200-deck), packaged in `package/d200-deck`): the key app and the update page on port 80 ([update.md](update.md)), each restarted when it exits. `deckd` itself is restarted when it exits or hangs: when its heartbeat, `/run/deckd.alive`, doesn't change for 60 s. Its config and update state are in `/data/deckd` |
+| `S60deckd` | `deckd` ([d200-deck](https://github.com/riptidewave93/d200-deck), `package/d200-deck`): the key app and the update page on port 80 ([update.md](update.md)). Restarted when it exits, or when its heartbeat `/run/deckd.alive` stops changing for 60 s. Config and update state: `/data/deckd` |
 | syslogd, klogd | BusyBox defaults. Logs go to `/var/log/messages`, in RAM (`/var/log` is `/tmp`), about 400 KB at most |
 
 Files added to Buildroot's default skeleton live in `board/ulanzi/d200/rootfs-overlay/`.
@@ -90,8 +100,8 @@ Functions are set in `/etc/default/usb-gadget`:
 | `ncm` | USB Ethernet (built-in driver on Linux, macOS, Windows 10/11) | `usb0`, addresses below |
 | `msc` | Read-only USB drive "D200 DECK" with a README, including the D200's name and addresses | `/tmp/usb-drive.img`: a RAM copy of `/usr/share/d200/usb-drive.img` (built from `board/ulanzi/d200/usb-drive/`) with the README filled in at boot and when the addresses change |
 
-The order is the interface order, and it is fixed: always-on functions first, the drive last, so turning the drive off
-renumbers nothing. `bcdDevice` is the USB layout version: it changes when the always-on interfaces or the OS
+The order is the interface order, and it is fixed: always-on functions first, the drive last, so turning the drive
+off renumbers nothing. `bcdDevice` is the USB layout version: it changes when the always-on interfaces or the OS
 descriptors change, not with the drive setting. Microsoft OS descriptors (vendor code `0xcd`) give NCM the `WINNCM`
 compatible ID, so Windows binds its NCM driver without an INF; keep them. The functions use 5 of the controller's 6
 IN endpoints ([hardware.md](hardware.md#usb)). Each IN endpoint gets the smallest free TX FIFO its packets fit: the
@@ -125,22 +135,21 @@ serial so several D200s on one PC don't clash. `deckd usb-net` computes them (d2
   lifetime 0 (no default route through the D200).
 - Without a CPU serial: `172.31.254.1/30`, IPv4 only.
 - `net4` in the settings replaces the IPv4 `/30`.
+- MAC addresses: derived from the CPU serial, so they stay the same across boots.
 
 Sandboxed apps on Linux (e.g. Flatpak browsers) often can't resolve `.local` names, so the PC app opens the
 D200's IPv4 address, not its mDNS name.
 
 Proxy tools in "fake-IP" mode (Clash, sing-box, Surge) use `198.18.0.0/15` too; only the D200's own 4 addresses are
-affected, and `net4` moves them elsewhere. Both MAC addresses are derived from the CPU serial, so they stay the same
-across boots.
+affected, and `net4` moves them elsewhere.
 
 **Every OUT endpoint must always have a reader on the D200.** The controller has a single RX FIFO for all of them
 ([hardware.md](hardware.md#usb)), so data sent to a function nobody reads blocks it and stalls every function, USB
-Ethernet included (seen on the D200 with the config channel's OUT endpoint and `deckd` stopped). NCM and mass storage
-always read theirs. The keyboard HID takes its LED reports over the control endpoint instead of an OUT endpoint. The
-config channel has an OUT endpoint, since output reports over the control endpoint cost 1 ms per 64 bytes (the PC
-retries each NAKed packet a frame later); kernel patch 0016 keeps f_hid taking its data when `deckd` doesn't read,
-dropping the oldest unread report. For the same reason there is no USB serial port: a PC probing it for a modem would
-stall everything.
+Ethernet included. NCM and mass storage always read theirs. The keyboard HID takes its LED reports over the control
+endpoint instead of an OUT endpoint. The config channel has an OUT endpoint, since output reports over the control
+endpoint cost 1 ms per 64 bytes (the PC retries each NAKed packet a frame later); kernel patch 0016 keeps f_hid
+taking its data when `deckd` doesn't read, dropping the oldest unread report. For the same reason there is no USB
+serial port: a PC probing it for a modem would stall everything.
 
 ## Display and keys
 
@@ -163,4 +172,5 @@ Key codes, in reading order (as seen from the front):
 | 12 (bottom row) | `KEY_PROG1` |
 | 13 (wide bottom-right key) | `KEY_PROG2` |
 
-Quick checks (debug builds): `modetest -M rockchip -c` (connectors and properties), `hexdump -C /dev/input/event0` (press keys).
+Quick checks (debug builds): `modetest -M rockchip -c` (connectors and properties), `hexdump -C /dev/input/event0`
+(press keys).

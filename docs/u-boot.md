@@ -12,8 +12,8 @@ What the board does at boot:
    the boot counter are in [ota.md](ota.md#boot).
 
 The console is the UART only, and only in debug builds. Release builds (`board/ulanzi/d200/uboot-release.fragment`)
-boot without a prompt, and wait in fastboot if Linux doesn't boot. The panel sits behind the keys, so it only shows
-the boot screens.
+boot without a prompt, and wait in fastboot if Linux doesn't boot. The screen only ever shows the boot screens,
+never a console.
 
 ## Patches
 
@@ -65,6 +65,7 @@ git clone --depth 1 --branch v2026.10 https://source.denx.de/u-boot/u-boot.git
 cd u-boot && git switch -c d200
 git am <repo>/board/ulanzi/d200/patches/uboot/2026.10/*.patch
 # ... edit, commit (one topic per patch) ...
+rm <repo>/board/ulanzi/d200/patches/uboot/2026.10/*.patch    # so renamed patches don't leave old files
 git format-patch --no-signature --zero-commit -N -o <repo>/board/ulanzi/d200/patches/uboot/2026.10 v2026.10..d200
 ```
 Then `make uboot-rebuild` in this repo rebuilds U-Boot with the new patches. The Linux patches work the same way

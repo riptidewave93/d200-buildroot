@@ -4,14 +4,19 @@ A Buildroot br2-external for the **Ulanzi D200** stream controller (Rockchip RK3
 NAND, 720x1280 RGB panel behind the keys). It builds mainline U-Boot, a minimal mainline Linux and a small BusyBox
 root filesystem, all flashed over USB with fastboot.
 
-**New here?** Start with [docs/install.md](docs/install.md). Back up the stock firmware first.
+## Docs
+
+- New here? [Install](docs/install.md): back up the stock firmware, then flash.
+- [Update](docs/update.md) a D200 that already runs this firmware.
+- [Recovery](docs/recovery.md) when it doesn't start.
+- Hardware, U-Boot, Linux and A/B updates: [docs/README.md](docs/README.md).
 
 ## Status
 
 | Part | State |
 |---|---|
 | U-Boot | Boots from SPI NAND, boot screens on the display, fastboot flashing, recovery keys (fastboot, maskrom) |
-| Linux | Boots in ~3 s from UBI, from A/B slots with automatic rollback and updates from a web page ([update](docs/update.md)); read-only root, settings in `/data`. Display, keys, CPU scaling (408-816 MHz) with thermal throttling. Over the USB-C cable: a USB keyboard (HID), the config channel (vendor HID), USB Ethernet (per-device addresses, `d200-<serial>.local`) and a read-only USB drive |
+| Linux | Boots in ~3 s. A/B updates from a web page with automatic rollback ([update](docs/update.md)). Read-only root, settings in `/data`. Display, keys, CPU scaling with thermal throttling. Over USB-C: keyboard (HID), config channel, USB Ethernet (`d200-<serial>.local`), read-only USB drive ([details](docs/linux.md#usb)) |
 | Key app | [`deckd`](https://github.com/riptidewave93/d200-deck): pages of buttons, media keys, key combos and macros over USB HID. Set up from the [configuration website](https://riptidewave93.github.io/d200-configure/); [`deckhost`](https://github.com/riptidewave93/d200-deck/blob/main/docs/deckhost.md), the PC helper, runs on Linux and Windows |
 | Not done | Testing a key press waking the PC from sleep, our own USB VID:PID (optional) ([to do](docs/todo.md)) |
 
@@ -27,7 +32,7 @@ root filesystem, all flashed over USB with fastboot.
 
 | Component | Version |
 |---|---|
-| Buildroot | `master` at [`d04496c8c14a`](https://gitlab.com/buildroot.org/buildroot/-/commit/d04496c8c14a84c6ff9f23a023eb70eea61c683a) (`BUILDROOT_VER` in `Makefile`), until the next Buildroot release |
+| Buildroot | `master` at [`d04496c8c14a`](https://gitlab.com/buildroot.org/buildroot/-/commit/d04496c8c14a84c6ff9f23a023eb70eea61c683a) (`BUILDROOT_VER` in `Makefile`) |
 | U-Boot | [v2026.10](https://source.denx.de/u-boot/u-boot/-/tree/v2026.10) + `board/ulanzi/d200/patches/uboot/2026.10/` |
 | Linux | [v7.2.11](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tag/?h=v7.2.11) + `board/ulanzi/d200/patches/linux/7.2.11/`, config `board/ulanzi/d200/linux.config` |
 | rkbin (BL31 v2.28, DDR init v2.11 589 MHz, `boot_merger`) | [`3e288fe814e0`](https://github.com/rockchip-linux/rkbin/commit/3e288fe814e059dd06833495f845cab04ac20a5c) (`BR2_PACKAGE_D200_RKBIN_VERSION`) |
@@ -47,31 +52,9 @@ install too.
 | `release` (default) | No SSH and no shell on the UART; U-Boot boots without a console prompt (and falls back to fastboot) |
 | `debug` | Root shell on the UART and SSH/SFTP over USB Ethernet (root, no password), `modetest`, the normal U-Boot console |
 
-Recovery (the fastboot key, the maskrom key combo) works in both. Each flavour builds in its own
-`BuildEnv/output-<flavour>/`. The first build takes a while (toolchain, kernel, Go). Images land in
-`output/<date>-<flavour>/`. The last 3 builds of each flavour are kept; `KEEP=<n>` changes that, `KEEP=0` keeps
-all:
-
-| File | What |
-|---|---|
-| `flash-fastboot.sh` | Flashes the images below over fastboot ([flashing.md](docs/flashing.md)) |
-| `idbloader.img` | TPL (rkbin DDR init) + U-Boot SPL: one 256 KiB copy (the update bundle carries this) |
-| `idbloader-x4.img` | The `idbloader` partition: 4 copies of `idbloader.img`, one every 256 KiB |
-| `u-boot.itb` | U-Boot FIT (BL31 + U-Boot + DTB), for `u-boot` and `u-boot-backup` |
-| `kernel.itb` | Kernel FIT (Image.gz + DTB), for the `kernel_a` / `kernel_b` UBI volumes |
-| `rootfs.ubifs` | Root filesystem, for the `rootfs_a` / `rootfs_b` UBI volumes |
-| `ubi.img` | The whole `ubi` partition (env, slot A, empty `/data`), for a full install |
-| `d200-usb-loader.bin` | Runs U-Boot from RAM over USB, from maskrom: `rkdeveloptool boot d200-usb-loader.bin` |
-| `u-boot-rockchip-usb471.bin`, `-usb472.bin` | The two stages packed into `d200-usb-loader.bin` |
-| `d200-full.img` | The whole install as one image, for `rkdeveloptool wl 0` ([install.md](docs/install.md#3-flash)) |
-| `rk3308_loader_wo_ftl.bin` | Rockchip's raw NAND loader (rkbin), which `rkdeveloptool` needs to write `d200-full.img` |
-| `d200-<version>-<flavour>-update.tar` | Update bundle for the update page ([update.md](docs/update.md), [ota.md](docs/ota.md#bundle)) |
-| `d200-<version>-<flavour>.zip` | The fastboot set (everything above `d200-full.img`, with its own `SHA256SUMS`), for releases |
-| `d200-<version>-<flavour>-maskrom.tar.xz` | `d200-full.img` and `rk3308_loader_wo_ftl.bin`, for releases |
-| `SHA256SUMS` | Checksums of the above |
-
-`<version>` is this repo's `git describe`; a release (tag `vX.Y.Z`) attaches the `.zip`, `-maskrom.tar.xz` and
-`-update.tar` of both flavours.
+Both flavours have the recovery keys. The first build takes a while (toolchain, kernel, Go). Images land in
+`output/<date>-<flavour>/`; the last 3 builds of each flavour are kept (`KEEP=<n>`, `KEEP=0` keeps all). See
+[flashing.md](docs/flashing.md#images) for what each file is.
 
 Other targets:
 ```
@@ -92,24 +75,21 @@ board/ulanzi/d200/
   patches/linux/7.2.11/            kernel patches
   patches/mdnsd/1.2/               mdnsd fix (IPv6 mDNS before the PC brings the link up)
   linux.config                     kernel config
-  busybox.fragment                 BusyBox additions
+  *.fragment                       BusyBox additions, release U-Boot and debug image settings
   rootfs-overlay/                  files added to the root filesystem (init scripts, SSH settings)
-  usb-drive/                       contents of the read-only USB drive
+  usb-drive/, usb-drive-readme.py  the read-only USB drive and its filled-in README
   kernel.its, ubinize.cfg          kernel FIT and UBI image layouts
   idb-layout.py                    lays out idbloader.img for power-cut-safe updates
   logo/                            boot and fastboot screens (BMPs) and their generator
   flash-fastboot.sh                host flashing script (copied next to the images)
-  post-build.sh, post-image.sh     build the USB drive image, the USB loader, kernel.itb, ubi.img and the update bundle
+  post-build.sh, post-image.sh     build the USB drive, USB loader, kernel.itb, ubi.img and update bundle
 package/d200-rkbin/                rkbin at a selectable commit
 package/d200-utils/                reboot-to
-package/d200-deck/                 deckd, the key app and update page (Go; source: github.com/riptidewave93/d200-deck)
+package/d200-deck/                 deckd, the key app and update page (Go, from d200-deck)
+external.mk                        reproducible U-Boot and kernel, U-Boot boot screens
 depends/, scripts/                 builder image and build scripts
 docs/                              documentation
 ```
-
-## Docs
-
-Start with [Install](docs/install.md); everything else is listed in [docs/README.md](docs/README.md).
 
 ## License
 

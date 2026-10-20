@@ -1,18 +1,23 @@
 # D200 docs
 
+Using a D200:
+
 | Doc | Read it for |
 |---|---|
 | [install.md](install.md) | Replacing the stock firmware: back it up, enter maskrom, flash |
-| [update.md](update.md) | Updating: from the update page, over fastboot, or from maskrom |
-| [flashing.md](flashing.md) | Updating over USB (fastboot), the NAND layout, a custom boot screen |
-| [recovery.md](recovery.md) | Getting a board back: keys, maskrom, UART, hardware shorts, restoring the stock firmware |
-| [hardware.md](hardware.md) | Device facts: SoC, storage, display, keys, screen layout, USB, OTP, test points |
-| [u-boot.md](u-boot.md) | How the U-Boot port works, what each patch does, how to change the patches |
-| [linux.md](linux.md) | The kernel, root filesystem and USB functions (USB Ethernet, SSH, USB drive, HID) |
-| [ota.md](ota.md) | A/B updates: slots, boot counter, the update bundle, what the updater does |
-| [todo.md](todo.md) | What's next |
-| [read-unlock/](read-unlock/README.md) | A patched Rockchip loader that reads the whole flash, for backups without `adb` |
+| [update.md](update.md) | Installing a new version: from the update page or over fastboot |
+| [recovery.md](recovery.md) | A D200 that doesn't start; going back to the stock firmware |
 
-Project status: see the [top-level README](../README.md#status). The key app, PC helper and config format are in
-[d200-deck](https://github.com/riptidewave93/d200-deck), the configuration website in
-[d200-configure](https://github.com/riptidewave93/d200-configure).
+Working on the firmware:
+
+| Doc | Read it for |
+|---|---|
+| [flashing.md](flashing.md) | `flash-fastboot.sh` options, fastboot commands, the images, the NAND layout, a custom boot screen |
+| [hardware.md](hardware.md) | SoC, storage, display, keys, screen layout, USB, OTP, test points |
+| [u-boot.md](u-boot.md) | The U-Boot port, its patches, and how to change them |
+| [linux.md](linux.md) | The kernel, root filesystem and USB functions |
+| [ota.md](ota.md) | A/B updates: slots, boot counter, the update bundle, the updater spec |
+| [read-unlock/](read-unlock/README.md) | Building the patched loader for a full-flash backup without `adb` |
+| [todo.md](todo.md) | Open items |
+
+Project overview, status and the other D200 repos: [README](../README.md).
