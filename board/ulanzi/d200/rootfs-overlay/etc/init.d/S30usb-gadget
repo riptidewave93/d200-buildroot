@@ -64,21 +64,20 @@ add_function() {
 		echo 1 > $f/no_out_endpoint
 		;;
 	raw)
-		# config channel for the website (WebHID) and the PC app
+		# config channel for the website (WebHID) and the PC app; deckd owns
+		# its report descriptor and input report length
 		f=functions/hid.usb1
 		mkdir $f
+		len=$(/usr/bin/deckd raw-report-length)
 		if ! /usr/bin/deckd raw-descriptor > /tmp/raw-report-desc ||
-		   [ ! -s /tmp/raw-report-desc ]; then
+		   [ ! -s /tmp/raw-report-desc ] || ! [ "$len" -gt 0 ] 2>/dev/null; then
 			echo "usb-gadget: no raw HID report descriptor, skipping raw" >&2
 			rmdir $f
 			return
 		fi
 		echo 0 > $f/subclass
 		echo 0 > $f/protocol
-		# input report length (an older deckd: 64), one per microframe
-		len=$(/usr/bin/deckd raw-report-length 2>/dev/null)
-		case "$len" in ''|*[!0-9]*) len=64 ;; esac
-		echo $len > $f/report_length
+		echo "$len" > $f/report_length	# one per microframe
 		echo 1 > $f/interval
 		cat /tmp/raw-report-desc > $f/report_desc
 		rm -f /tmp/raw-report-desc
