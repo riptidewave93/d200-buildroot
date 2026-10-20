@@ -27,8 +27,12 @@ sha256sum d200-factory.img > d200-factory.img.sha256
 ```
 Keep both files somewhere safe. To restore them, see [recovery.md](recovery.md#4-restore-the-stock-firmware).
 
-No adb? Enter maskrom (step 2) and read the flash with the patched loader in [read-unlock/](read-unlock/README.md).
-Stock Rockchip loaders silently return garbage past 32 MiB.
+No adb? Enter maskrom (step 2) and read the flash with the patched loader from [read-unlock/](read-unlock/README.md).
+
+> [!WARNING]
+> Don't back up with `rk3308_loader_wo_ftl.bin` from the releases, or any stock Rockchip loader: past 32 MiB they
+> return filler without an error, so the backup is broken. To avoid possible license issues, the patched loader isn't
+> shipped; build it yourself with [read-unlock/](read-unlock/README.md).
 
 ## 2. Enter maskrom
 
