@@ -57,7 +57,8 @@ install -m 0755 "$(dirname "$0")/flash-fastboot.sh" "$BINARIES_DIR/"
 
 if [ -f "$BINARIES_DIR/Image.gz" ]; then
 	cp "$(dirname "$0")/kernel.its" "$BINARIES_DIR/"
-	(cd "$BINARIES_DIR" && "$HOST_DIR/bin/mkimage" -f kernel.its kernel.itb)
+	# dated like the kernel (external.mk), so it only changes with the kernel
+	(cd "$BINARIES_DIR" && SOURCE_DATE_EPOCH=$D200_LINUX_EPOCH "$HOST_DIR/bin/mkimage" -f kernel.its kernel.itb)
 
 	# 128 KiB blocks, 2 KiB pages, no sub-pages
 	(cd "$BINARIES_DIR" && "$HOST_DIR/sbin/ubinize" -o ubi.img -p 128KiB -m 2048 -s 2048 \

@@ -7,6 +7,14 @@ ifeq ($(BR2_TARGET_UBOOT)$(BR2_PACKAGE_D200_RKBIN),yy)
 $(UBOOT_TARGET_CONFIGURE): $(D200_RKBIN_TARGET_INSTALL_IMAGES)
 endif
 
+# The last commit that changed any of the paths in $(1), as a Unix time; the
+# Buildroot release date without git history
+d200-epoch = $(or $(shell git -C $(BR2_EXTERNAL_D200_BUILDROOT_PATH) log -1 \
+	--format=%ct -- $(1) 2>/dev/null),$(BR2_VERSION_EPOCH))
+ifeq ($(shell git -C $(BR2_EXTERNAL_D200_BUILDROOT_PATH) rev-parse 2>/dev/null && echo y),)
+$(warning No git history: U-Boot and the kernel are dated by Buildroot instead, so updates rewrite the bootloader once)
+endif
+
 # Boot screens: binary files can't go through the patch series, so drop the
 # D200 boot logo ("Booting..." in the large key, "Hold for Fastboot" in the
 # top-left key) and the fastboot screen into the U-Boot tree here.
@@ -23,10 +31,16 @@ UBOOT_POST_PATCH_HOOKS += D200_UBOOT_INSTALL_LOGO
 # and an update skips the bootloader (docs/ota.md)
 D200_UBOOT_INPUTS = board/ulanzi/d200/patches/uboot board/ulanzi/d200/logo \
 	board/ulanzi/d200/uboot-release.fragment package/d200-rkbin
-D200_UBOOT_EPOCH := $(shell git -C $(BR2_EXTERNAL_D200_BUILDROOT_PATH) log -1 \
-	--format=%ct -- $(D200_UBOOT_INPUTS) 2>/dev/null)
-ifeq ($(D200_UBOOT_EPOCH),)
-$(warning No git history: U-Boot is dated by Buildroot instead, so updates rewrite the bootloader once)
+D200_UBOOT_EPOCH := $(call d200-epoch,$(D200_UBOOT_INPUTS))
+UBOOT_MAKE_OPTS += SOURCE_DATE_EPOCH=$(D200_UBOOT_EPOCH)
 endif
-UBOOT_MAKE_OPTS += SOURCE_DATE_EPOCH=$(or $(D200_UBOOT_EPOCH),$(BR2_VERSION_EPOCH))
-endif
+
+# Reproducible kernel, the same way: kernel.itb only changes with the kernel
+D200_LINUX_INPUTS = board/ulanzi/d200/patches/linux board/ulanzi/d200/linux.config \
+	board/ulanzi/d200/kernel.its
+export D200_LINUX_EPOCH := $(call d200-epoch,$(D200_LINUX_INPUTS))
+LINUX_MAKE_ENV += \
+	KBUILD_BUILD_VERSION=1 \
+	KBUILD_BUILD_USER=d200 \
+	KBUILD_BUILD_HOST=d200 \
+	KBUILD_BUILD_TIMESTAMP="$(shell LC_ALL=C date -u -d @$(D200_LINUX_EPOCH))"
