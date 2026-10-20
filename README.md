@@ -16,11 +16,9 @@ Open-source replacement firmware for the **Ulanzi D200** stream controller, buil
 
 ## Get it
 
-| | |
-|---|---|
-| [Install](docs/install.md) | Back up the stock firmware, then flash. About 10 minutes, and you can always go back |
-| [Update](docs/update.md) | Install a new version on a D200 that already runs this firmware |
-| [Recovery](docs/recovery.md) | A D200 that doesn't start, or going back to the stock firmware |
+- [Install](docs/install.md): back up the stock firmware, then flash. About 10 minutes, and you can always go back.
+- [Update](docs/update.md): a new version on a D200 that already runs this firmware.
+- [Recovery](docs/recovery.md): a D200 that doesn't start, or going back to the stock firmware.
 
 ## The D200 project
 
