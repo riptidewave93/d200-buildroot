@@ -16,9 +16,9 @@ root filesystem, all flashed over USB with fastboot.
 | Part | State |
 |---|---|
 | U-Boot | Boots from SPI NAND, boot screens on the display, fastboot flashing, recovery keys (fastboot, maskrom) |
-| Linux | Boots in ~3 s. A/B updates from a web page with automatic rollback ([update](docs/update.md)). Read-only root, settings in `/data`. Display, keys, CPU scaling with thermal throttling. Over USB-C: keyboard (HID), config channel, USB Ethernet (`d200-<serial>.local`), read-only USB drive ([details](docs/linux.md#usb)) |
+| Linux | Boots in ~3 s. A/B updates from a web page with automatic rollback ([update](docs/update.md)). Read-only root, settings in `/data`. Display, keys, CPU scaling with thermal throttling. Over USB-C: keyboard (HID), config channel, USB Ethernet (`d200-<serial>.local`), read-only USB drive ([details](docs/linux.md#usb)). Dims the screen while the PC sleeps |
 | Key app | [`deckd`](https://github.com/riptidewave93/d200-deck): pages of buttons, media keys, key combos and macros over USB HID. Set up from the [configuration website](https://riptidewave93.github.io/d200-configure/); [`deckhost`](https://github.com/riptidewave93/d200-deck/blob/main/docs/deckhost.md), the PC helper, runs on Linux and Windows |
-| Not done | Testing a key press waking the PC from sleep, our own USB VID:PID (optional) ([to do](docs/todo.md)) |
+| Not done | Testing a key press waking the PC from sleep ([to do](docs/todo.md)) |
 
 ## The D200 project
 
@@ -73,7 +73,7 @@ configs/ulanzi_d200_defconfig      Buildroot defconfig
 board/ulanzi/d200/
   patches/uboot/2026.10/           U-Boot patch series
   patches/linux/7.2.11/            kernel patches
-  patches/mdnsd/1.2/               mdnsd fix (IPv6 mDNS before the PC brings the link up)
+  patches/mdnsd/1.2/               mdnsd fix
   linux.config                     kernel config
   *.fragment                       BusyBox additions, release U-Boot and debug image settings
   rootfs-overlay/                  files added to the root filesystem (init scripts, SSH settings)

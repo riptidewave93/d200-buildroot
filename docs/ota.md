@@ -1,58 +1,52 @@
 # Updates (A/B)
 
-How the D200 updates itself over USB: what the system provides, and what the updater (`deckd update`, in
+How the D200 updates itself: what the system provides, and what the updater (`deckd update`, in
 [d200-deck](https://github.com/riptidewave93/d200-deck)) does with it. Flashing over fastboot is in
 [flashing.md](flashing.md).
 
 In short:
 - Linux runs from one of two slots, A or B.
-- An update writes the other slot (and, when the bundle has them, the bootloader), switches slots and reboots
-  once.
+- An update writes the other slot (and the bootloader, when it changed), switches slots and reboots once.
 - If the new slot doesn't come up healthy, U-Boot switches back by itself.
-- The bootloader has no second slot. Its writes are made safe against power cuts instead, and the recovery keys
-  cover a bad U-Boot.
+- The bootloader has no second slot. Its writes are safe against power cuts instead, and the recovery keys cover a
+  bad U-Boot.
 
 ## Layout
 
-The flash partitions and UBI volumes are listed in [flashing.md](flashing.md#nand-layout). For the updater:
+The partitions and UBI volumes are listed in [flashing.md](flashing.md#nand-layout). For the updater:
 
-| Target | Device | Notes |
-|---|---|---|
-| `idbloader` | MTD partition `idbloader` (`/proc/mtd`), 1 MiB | 4 copies of one 256 KiB IDB copy, at fixed offsets |
-| `u-boot` | MTD partitions `u-boot-backup` and `u-boot`, 4 MiB each | Same image in both; SPL skips bad blocks |
-| `kernel` | UBI volume `kernel_a` (id 2) or `kernel_b` (id 3), static, 8 MiB | `/dev/ubi0_2`, `/dev/ubi0_3` |
-| `rootfs` | UBI volume `rootfs_a` (id 4) or `rootfs_b` (id 5), dynamic, 32 MiB | Mounted read-only |
-| — | UBI volume `data` (id 6), 100 MiB | `/data`, always mounted; `/data/update` for the incoming bundle |
+| Target | Where |
+|---|---|
+| `idbloader` | MTD partition `idbloader`: 4 copies of one 256 KiB IDB copy, at fixed offsets |
+| `u-boot` | MTD partitions `u-boot-backup` and `u-boot`, the same image in both |
+| `kernel` | UBI volume `kernel_a` (id 2) or `kernel_b` (id 3), static, 8 MiB |
+| `rootfs` | UBI volume `rootfs_a` (id 4) or `rootfs_b` (id 5), dynamic, 32 MiB |
 
-The volume IDs are fixed (splash is 7). A fresh install has slot A only: the first update creates `kernel_b`
-and `rootfs_b`.
+The incoming bundle goes to `/data/update`, which is emptied at every boot. A fresh install has slot A only: the
+first update creates `kernel_b` and `rootfs_b`.
 
 ## Boot
 
-U-Boot boots `slot` (`a` or `b`) and passes it on the kernel command line as `d200.slot=a|b`, with
-`root=ubi0:rootfs_<slot> ro`. If that slot doesn't boot (empty or half-written volume, bad FIT hash), U-Boot
-boots the other slot in the same boot.
+U-Boot boots `slot` and passes it on the kernel command line as `d200.slot=a|b`. If that slot doesn't boot (empty or
+half-written volume, bad FIT hash), U-Boot boots the other slot in the same boot.
 
-The env lives in the UBI volumes `env` and `env_r` (redundant). The saved env can only set these variables;
-everything else comes from the running U-Boot:
+The env is stored in the UBI volumes `env` and `env_r` (redundant). U-Boot imports only these four variables from
+it; everything else comes from the running U-Boot's defaults:
 
 | Variable | Values | Meaning |
 |---|---|---|
 | `slot` | `a`, `b` | Slot to boot |
-| `upgrade_available` | `0`, `1` | `1`: the slot is on trial. Every boot counts, and the env is saved each boot |
-| `bootcount` | number | Boots since the trial started. Past 3, U-Boot switches `slot`, sets `upgrade_available=0`, `bootcount=0`, `ota_result=rolled-back` |
-| `ota_result` | `trial`, `ok`, `failed`, `rolled-back`, `fell-back` | Outcome of the last update, or `fell-back` when the stable slot stopped booting, for the updater to report |
+| `upgrade_available` | `0`, `1` | `1`: the slot is on trial, and every boot counts |
+| `bootcount` | number | Boots since the trial started. Past 3, U-Boot switches `slot` and sets `upgrade_available=0`, `bootcount=0`, `ota_result=rolled-back` |
+| `ota_result` | `trial`, `ok`, `failed`, `rolled-back`, `fell-back` | Outcome of the last update, or `fell-back` when the stable slot stopped booting |
 
-Linux reads and writes them with `fw_printenv` / `fw_setenv` (`/etc/fw_env.config`). A fresh install has an
-empty env; the tools then use the defaults from `/etc/u-boot-initial-env` (`slot=a`).
+Linux reads and writes them with `fw_printenv` / `fw_setenv`. A fresh install has an empty env; the tools then use
+`slot=a`.
 
 ## Bundle
 
-An uncompressed ustar archive, `d200-<version>-<flavour>-update.tar`. Members, in order:
-
-1. `manifest.json`
-2. `manifest.sig`, only in signed bundles
-3. the images, in write order: `idbloader.img`, `u-boot.itb`, `kernel.itb`, `rootfs.ubifs`
+An uncompressed ustar archive, `d200-<version>-<flavour>-update.tar`: `manifest.json`, then `manifest.sig` (signed
+bundles only), then the images in write order.
 
 ```json
 {
@@ -72,124 +66,54 @@ An uncompressed ustar archive, `d200-<version>-<flavour>-update.tar`. Members, i
 ```
 
 - `build_id` is `BUILD_ID` from `/usr/lib/os-release` (UTC `YYYYMMDDHHMM`), the number to compare for "newer".
-- Optional fields ([Compatibility](#compatibility)):
-  - `min_updater` (default 1): the oldest updater version that can install the bundle;
-  - `min_updater_release`: the first release with that updater, named in the refusal message;
-  - `optional` on an image (default `false`): an updater that doesn't know its target checks it and skips it.
-- `idbloader.img` is one 256 KiB IDB copy:
-  - bytes `0x0`–`0x7ff` are the header page;
-  - bytes `0x20000`–`0x3ffff` are the code block (TPL + SPL);
-  - everything else is `0xff`.
-- Every bundle carries all four images. A bootloader image identical to what is on the flash is not rewritten.
-  U-Boot and kernel builds are reproducible (each is dated by the last commit that changed it), so a build without
-  U-Boot or kernel changes carries the same `idbloader.img`, `u-boot.itb` and `kernel.itb`.
-- `manifest.sig` is the raw 64-byte Ed25519 signature of `manifest.json`'s exact bytes, which covers the images
-  through their hashes. See [Signing](#signing).
+- `min_updater` (default 1) is the oldest updater version that can install the bundle; `min_updater_release`
+  (optional) names the release that has it. An image with `"optional": true` is skipped by an updater that doesn't
+  know its target.
+- Every bundle carries all four images; an image identical to what is on the flash isn't rewritten. U-Boot and
+  kernel builds are reproducible, so they only change when their patches, config or rkbin change.
+- `manifest.sig` is the Ed25519 signature of `manifest.json`, which covers the images through their hashes.
+
+The bundle is built by `board/ulanzi/d200/post-image.sh`. When older devices must still install it:
+
+| Change | Do |
+|---|---|
+| A new image older devices can go without | Mark it optional |
+| Anything an older updater would get wrong (a new required image, a new write step, a changed field) | Raise `min_updater` to d200-deck's new `ota.UpdaterVersion`, and set `min_updater_release` |
 
 ## Signing
 
-Official builds are signed; anyone else's build is not, and installs all the same. The signature only tells the
-user whether a bundle is an official build.
+Official builds are signed; other builds aren't, and install all the same. The update page shows "Official build"
+or "Unofficial build".
 
 - The build signs when `D200_SIGNING_KEY` holds an Ed25519 private key (PEM), e.g.
-  `D200_SIGNING_KEY="$(cat keys/update-key.pem)" make build`. Official releases are signed in GitHub Actions from
-  the repository secret `D200_SIGNING_KEY`. The private key is never in git: `keys/` and `*.pem` are ignored.
-- The D200 checks it against `/etc/d200/update-key.pub` (PEM, from `rootfs-overlay/etc/d200/update-key.pub`). The
-  update page says "Official build" if it verifies, "Unofficial build" otherwise (no signature, no key, another key).
-- A fork that signs its own builds replaces `update-key.pub` with its public key.
+  `D200_SIGNING_KEY="$(cat keys/update-key.pem)" make build`. Releases are signed in GitHub Actions from the
+  repository secret `D200_SIGNING_KEY`. The private key is never in git: `keys/` and `*.pem` are ignored.
+- The D200 checks it against `/etc/d200/update-key.pub`, from `rootfs-overlay/etc/d200/update-key.pub`. A fork that
+  signs its own builds replaces it with its public key.
 
 Make a key pair with `openssl genpkey -algorithm ed25519 -out key.pem` and
 `openssl pkey -in key.pem -pubout -out update-key.pub`.
 
 ## Updating
 
-Everything below is done by the updater, as root.
-
-**Receive:**
-1. Check the free space on `/data` against the upload size, then stream the tar into `/data/update/`, one file
-   per member, hashing each file as it is written.
-2. Reject the bundle unless:
-   - `format` is 1, `product` is `d200`, and `min_updater` is at most this updater's version;
-   - every image's target is known, or the image is optional (checked, then skipped);
-   - every listed file is present with the right size and sha256, and there are no other files besides
-     `manifest.sig`.
-3. A release device refuses `flavour: debug`.
-4. Wait for the confirming key press on the device before writing anything.
-
-`/data/update` is emptied at every boot (`S00data`). The updater empties it too when an update fails without a
-reboot.
-
-**Write**, in this order. Each target is retried once from its file before the update stops. A stop leaves
-what was already written; every step is compatible with the running system.
-
-1. **`idbloader`** (skip it if all 4 copies already match). For each copy at `k × 0x40000`, `k` = 3, 2, 1, 0:
-   1. Erase the header block (`k × 0x40000`). The copy is now invalid; the BootROM uses another one.
-   2. Erase the code block (`k × 0x40000 + 0x20000`), write the code block, and read it back.
-   3. Write the header page in two raw passes (`MEMWRITE` with `MTD_OPS_RAW`, 2048 data bytes plus 128 OOB
-      bytes, all OOB `0xff`):
-      - first the header page with its first 4 bytes (the magic) set to `0xff`;
-      - then a page of `0xff` with only those 4 bytes.
-   4. Read the page back raw and compare.
-
-   The BootROM ignores ECC and skips a header without its magic, so a power cut at any point leaves a copy that
-   is either invalid or complete. Normal (ECC) reads of a header page report `EBADMSG` by design; always
-   compare it raw.
-
-   Never mark these blocks bad, and never skip one: the copies must stay at their offsets. A copy that fails
-   twice is left with its header block erased. Carry on while at least 2 copies are good; with fewer, stop.
-2. **`u-boot`** (skip it if both partitions already match):
-   - Write `u-boot-backup`, then `u-boot`.
-   - For each partition, erase and write the good blocks in order, skipping bad blocks (`MEMGETBADBLOCK`), then
-     read back and compare.
-   - On an erase or write error, mark the block bad (`MEMSETBADBLOCK`) and redo that partition.
-   - A `u-boot` that fails twice is erased completely, so SPL falls back to the new backup.
-3. **`kernel`**, then **`rootfs`**, into the inactive slot: the one Linux isn't running from (`d200.slot` in
-   `/proc/cmdline`). Never take it from the env's `slot`, which can name a slot that doesn't boot:
-   - If the volume is missing, create it (`UBI_IOCMKVOL` on `/dev/ubi0`, with its fixed ID, type and size from
-     the layout table); if it is smaller than the image, grow it (`UBI_IOCRSVOL`).
-   - A static volume (the kernel) that already holds the image (its data has the image's size and sha256) is left
-     alone.
-   - `UBI_IOCVOLUP` with the image size on `/dev/ubi0_<id>`, write the image, close, read back and compare
-     sha256.
-   - A volume that fails twice is truncated (`UBI_IOCVOLUP` with size 0).
-   - An interrupted write leaves the volume marked as being updated, and U-Boot won't boot it.
-4. **Activate** with one `fw_setenv` call, which is one env write, then reboot:
-   ```
-   fw_setenv slot <inactive> upgrade_available 1 bootcount 0 ota_result trial
-   ```
-
-**Confirm**, at every start of the updater:
-
-| `/proc/cmdline` vs env | What to do |
-|---|---|
-| `upgrade_available=1`, `d200.slot` = `slot` | Trial boot. Wait up to ~90 s for the key app to be healthy, then `fw_setenv upgrade_available 0 bootcount 0 ota_result ok`. Not healthy: reboot (it counts toward the rollback) |
-| `upgrade_available=1`, `d200.slot` ≠ `slot` | U-Boot couldn't boot the new slot: `fw_setenv slot <running> upgrade_available 0 bootcount 0 ota_result failed` |
-| `ota_result=rolled-back` | The new slot failed 3 boots. Report it |
-| `upgrade_available=0`, `d200.slot` ≠ `slot` | The stable slot didn't boot, and U-Boot fell back to the other one: `fw_setenv slot <running> bootcount 0 ota_result fell-back`. An update repairs the broken slot. An empty env (never updated) is left alone |
-
-**Report:** `ota_result`, the version of each slot, and per target what happened (written, skipped,
-retries, blocks marked bad, IDB copies left invalid).
-
-## Compatibility
-
-A device installs bundles from later releases with the updater it already has. Unknown manifest fields are ignored.
-When building a bundle:
-
-| Change | Do |
-|---|---|
-| A new image older devices can go without | Mark it `optional` |
-| Anything an older updater would get wrong: a new required target, a new write step, a field whose meaning changes, leaving out one of the four images | Raise `min_updater` to the new updater version (d200-deck's `ota.UpdaterVersion`, raised in the same release) and set `min_updater_release` |
-
-Both are set in `board/ulanzi/d200/post-image.sh`.
+What the updater does:
+1. Streams the bundle into `/data/update` and checks it: `format` 1, `product` `d200`, `min_updater`, known or
+   optional targets, every file's size and sha256. A release device refuses a debug bundle.
+2. Waits for the confirming key press on the D200.
+3. Writes `idbloader`, `u-boot-backup`, `u-boot`, then `kernel` and `rootfs` into the inactive slot (the one
+   `d200.slot` doesn't name). Each write is read back, and retried once.
+4. Activates the new slot with one env write, and reboots:
+   `fw_setenv slot <inactive> upgrade_available 1 bootcount 0 ota_result trial`.
+5. After the reboot, confirms the trial once the key app is healthy (`upgrade_available 0 bootcount 0 ota_result
+   ok`), or records `failed` / `fell-back` when the D200 runs another slot than `slot`.
 
 ## Power cuts
 
 | During | Result |
 |---|---|
-| Receiving the bundle | Partial files in `/data/update`, removed at the next boot |
-| An IDB copy | That copy is invalid until its magic is written; another copy boots |
-| `u-boot-backup` | `u-boot` is still good |
-| `u-boot` | Fails SPL's hash check; SPL boots the backup (new and verified) |
-| A kernel or rootfs volume | Marked as being updated; the active slot boots |
-| Activate, confirm, rollback | One write to the redundant env: the old or the new env, both consistent |
+| Receiving the bundle | Nothing written; the partial files are removed at the next boot |
+| An IDB copy | That copy is invalid until it's complete; another copy boots |
+| `u-boot-backup` or `u-boot` | The other one is good; SPL boots it |
+| A kernel or rootfs volume | The volume is marked incomplete; the active slot boots |
+| An env write | The redundant env keeps the old or the new state |
 | The trial boot | Counts as a failed boot (limit 3) |

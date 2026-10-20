@@ -1,47 +1,28 @@
 # Linux
 
-Mainline Linux **v7.2.11** with a minimal config, and a small BusyBox root filesystem. Boots in
-about 3 seconds and uses ~28 MiB of its ~115 MiB `MemTotal` with the key app running.
+Mainline Linux **v7.2.11** with a minimal config, and a small BusyBox root filesystem. Boots in about 3 seconds;
+about 40 MiB of the 115 MiB `MemTotal` is in use with everything running.
 
 ## Boot
 
-U-Boot boots one of two slots, A or B ([ota.md](ota.md#boot)): it reads `kernel.itb` from the UBI volume
-`kernel_a` or `kernel_b` and boots it. The FIT image holds the gzipped kernel and the D200 device tree
-(`board/ulanzi/d200/kernel.its`). The root filesystem is UBIFS in `rootfs_a` or `rootfs_b`, mounted read-only.
-
-U-Boot sets the kernel command line, for slot A:
+U-Boot boots slot A or B ([ota.md](ota.md#boot)): `kernel.itb` (kernel and device tree, `board/ulanzi/d200/kernel.its`)
+from the UBI volume `kernel_a` or `kernel_b`, and the read-only UBIFS root from `rootfs_a` or `rootfs_b`. The
+command line, for slot A:
 ```
 console=ttyS2,1500000n8 earlycon ubi.mtd=ubi rootfstype=ubifs ro panic=10 root=ubi0:rootfs_a d200.slot=a
 ```
-The kernel has slot A's line built in, for when U-Boot passes none.
 
 ## Kernel
 
-- Patches, in `board/ulanzi/d200/patches/linux/7.2.11/`:
-
-  | # | Patch | Why |
-  |---|---|---|
-  | 0001-0002 | RK3308 VOP | Display controller support |
-  | 0003-0004 | Ulanzi vendor prefix, D200 board binding | DT bindings |
-  | 0005-0007 | `rockchip,cmd-panel` panel driver, RGB connector type | The panel, initialised over bit-banged SPI |
-  | 0008 | RK3308 VOP node and LCDC pins | |
-  | 0009-0010 | RK3308B-S TSADC | Thermal sensor of this SoC variant |
-  | 0011 | RK3308B-S SoC dtsi | Its OPPs and TSADC |
-  | 0012 | D200 device tree | The same DT files U-Boot uses ([u-boot.md](u-boot.md#patches)) |
-  | 0013 | DWC2: leave L2 on resume | The gadget survives the PC sleeping |
-  | 0014 | DWC2 remote wakeup | A key press can wake the PC |
-  | 0015 | f_hid: wMaxPacketSize per speed | Valid descriptors at full speed for reports over 64 bytes |
-  | 0016 | f_hid: keep the OUT endpoint taking data | An unread OUT endpoint can't stall the other functions |
-  | 0017 | DWC2: report bus suspend in the gadget state | `/sys/class/udc/*/state` reads `suspended` while the PC has the bus suspended |
+- Patches: `board/ulanzi/d200/patches/linux/7.2.11/`. The D200 device tree files are the same as U-Boot's.
 - Config: `board/ulanzi/d200/linux.config`, started from `allnoconfig`. Everything is built in, no modules:
   - SoC: clocks, pinctrl, GPIO, UART, watchdog;
-  - storage: SPI NAND, UBI, UBIFS (LZO only; the rootfs is built with LZO);
-  - USB device mode (DWC2 + PHY) with configfs gadgets: HID, NCM, mass storage;
-  - IPv4 (with multicast, for mDNS) and IPv6;
-  - display: DRM/KMS (VOP, RGB output, panel, PWM backlight), 12 MiB CMA; no fbdev, no fbcon;
+  - storage: SPI NAND, UBI, UBIFS (LZO only);
+  - USB device mode (DWC2) with configfs gadgets: HID, NCM, mass storage;
+  - IPv4 and IPv6;
+  - display: DRM/KMS (VOP, RGB output, panel, PWM backlight); no fbdev, no fbcon;
   - keys: matrix keypad on evdev;
-  - CPU: cpufreq-dt (408/600/816 MHz, `schedutil`) on the PWM `vdd_core` regulator, TSADC thermal zone with CPU
-    throttling.
+  - CPU: cpufreq-dt (408/600/816 MHz, `schedutil`), thermal throttling.
 - To change the config (after one `make build`):
   ```bash
   make shell
@@ -59,35 +40,25 @@ builds have neither. Services:
 
 | Service | What |
 |---|---|
-| `S00data` | Mounts the UBI volume `data` at `/data` (formats it if it doesn't mount), and empties `/data/update` |
-| `S10loopback` | Brings up `lo` (`127.0.0.1`, `::1`); there are no ifupdown network scripts |
-| `S15watchdog` | Feeds `/dev/watchdog`. U-Boot starts it with a 60 s timeout, so a hung system resets |
-| `S30usb-gadget` | USB functions; USB Ethernet addresses, DHCP server (udhcpd) and IPv6 router advertisements (radvd); the hostname `d200-<serial>`. `apply` applies the USB settings ([USB](#usb)) |
-| `S50dropbear` | Debug builds only. SSH server on USB Ethernet (the only network); root without a password. Includes SFTP, so `scp`/`sftp` work |
-| `S50mdnsd` | mDNS on USB Ethernet: answers for `d200-<serial>.local` and advertises the web server (`_http._tcp`), plus SSH in debug builds |
-| `S60deckd` | `deckd` ([d200-deck](https://github.com/riptidewave93/d200-deck), `package/d200-deck`): the key app and the update page on port 80 ([update.md](update.md)). Restarted when it exits, or when its heartbeat `/run/deckd.alive` stops changing for 60 s. Config and update state: `/data/deckd` |
-| syslogd, klogd | BusyBox defaults. Logs go to `/var/log/messages`, in RAM (`/var/log` is `/tmp`), about 400 KB at most |
+| `S00data` | Mounts the UBI volume `data` at `/data` (formats it if it doesn't mount), empties `/data/update`, restores the clock |
+| `S10loopback` | Brings up `lo` |
+| `S15watchdog` | Feeds `/dev/watchdog` (60 s timeout, started by U-Boot) |
+| `S30usb-gadget` | USB functions, USB Ethernet addresses, DHCP server and IPv6 router advertisements, the hostname `d200-<serial>`. `apply` applies the USB settings ([USB](#usb)) |
+| `S50dropbear` | Debug builds only. SSH and SFTP on USB Ethernet; root without a password |
+| `S50mdnsd` | mDNS: `d200-<serial>.local` and the web server (`_http._tcp`), plus SSH in debug builds |
+| `S60deckd` | [`deckd`](https://github.com/riptidewave93/d200-deck): the key app and the update page on port 80. Restarted if it exits or hangs |
+| syslogd, klogd | Logs in RAM: `/var/log/messages` |
 
 Files added to Buildroot's default skeleton live in `board/ulanzi/d200/rootfs-overlay/`.
 
-The root filesystem is read-only. Everything kept across boots lives in `/data` (UBIFS, 100 MiB): the key app's
-config, the USB settings (`/data/usb-gadget.conf`), the saved clock (`/data/clock`), the random seed
-(`/data/seedrng`), the SSH host key (debug builds, `/etc/dropbear` links to `/data/dropbear`), and an incoming update
-(`/data/update`). The U-Boot env (slot and update state) is read and written with `fw_printenv` / `fw_setenv`.
+The root filesystem is read-only. What's kept across boots lives in `/data` (100 MiB): the key app's config, the
+USB settings, the saved clock, the random seed, the SSH host key (debug builds) and an incoming update. Logs,
+leases and PID files stay in RAM. The U-Boot env is read and written with `fw_printenv` / `fw_setenv`.
 
-**Clock:** there is no RTC. At boot, `S00data` sets the clock to the saved time or the build time (`BUILD_ID`),
-whichever is later, so it never starts in 1970. `deckd` sets it from the PC when the PC app connects, and saves it
-to `/data/clock` (Unix seconds) then and every 6 hours; a clean shutdown saves it too. After a power cut the clock
-is behind until the PC app connects.
+**Clock:** there is no RTC. The clock starts from the time saved in `/data/clock` or the build time, whichever is
+later. `deckd` sets it from the PC when the PC app connects, and saves it.
 
-**Flash writes** are kept rare to spare the SPI NAND. Logs, leases and PID files live in RAM (`/tmp`, `/run`), and
-UBIFS doesn't update access times (`UBIFS_ATIME_SUPPORT` is off), so reading files writes nothing. What does write:
-the random seed (at boot and shutdown), UBI's fastmap (once per boot), the SSH host key (debug builds, once),
-the clock (a few times a day), config changes, and updates. UBI spreads erases over all blocks and handles bad
-blocks.
-
-`reboot-to [normal|fastboot|maskrom]` (`package/d200-utils`) reboots into a boot mode: `fastboot` makes U-Boot start
-fastboot, `maskrom` makes the BootROM enter USB download mode, `normal` (the default) just reboots.
+`reboot-to [normal|fastboot|maskrom]` reboots into U-Boot's fastboot, the BootROM's USB download mode, or normally.
 
 ## USB
 
@@ -96,71 +67,43 @@ Functions are set in `/etc/default/usb-gadget`:
 
 | Function | PC sees | D200 side |
 |---|---|---|
-| `hid` | Keyboard, media keys, system control, mouse | `/dev/hidg0`. `deckd` provides the report descriptor and sends the reports; without it the function is skipped |
-| `raw` | A vendor HID device (usage page `0xFFD2`): the config channel for the website (WebHID) and the PC app. Input and output reports of `deckd raw-report-length` bytes (1024), on interrupt endpoints polled every 125 µs | `/dev/hidg1`, served by `deckd` |
+| `hid` | Keyboard, media keys, system control, mouse | `/dev/hidg0`; `deckd` provides the report descriptor |
+| `raw` | A vendor HID device (usage page `0xFFD2`): the config channel for the website (WebHID) and the PC app | `/dev/hidg1`, served by `deckd` |
 | `ncm` | USB Ethernet (built-in driver on Linux, macOS, Windows 10/11) | `usb0`, addresses below |
-| `msc` | Read-only USB drive "D200 DECK" with a README, including the D200's name and addresses | `/tmp/usb-drive.img`: a RAM copy of `/usr/share/d200/usb-drive.img` (built from `board/ulanzi/d200/usb-drive/`) with the README filled in at boot and when the addresses change |
+| `msc` | Read-only USB drive "D200 DECK" with a README showing the D200's name and addresses | Built from `board/ulanzi/d200/usb-drive/` |
 
-The order is the interface order, and it is fixed: always-on functions first, the drive last, so turning the drive
-off renumbers nothing. `bcdDevice` is the USB layout version: it changes when the always-on interfaces or the OS
-descriptors change, not with the drive setting. Microsoft OS descriptors (vendor code `0xcd`) give NCM the `WINNCM`
-compatible ID, so Windows binds its NCM driver without an INF; keep them. The functions use 5 of the controller's 6
-IN endpoints ([hardware.md](hardware.md#usb)). Each IN endpoint gets the smallest free TX FIFO its packets fit: the
-config channel's 1024-byte packets need the one 1 KiB FIFO, NCM and the drive the two 512-byte ones, so no other
-function may have IN packets over 64 bytes. At full speed, packets are at most 64 bytes and a longer report takes
-several.
+`/sys/class/udc/*/state` reads `suspended` while the PC has the bus suspended (asleep, or off with the port
+powered), and `configured` in normal use.
 
-**Settings** are `KEY=value` lines in `/data/usb-gadget.conf`. A missing or invalid value means the default:
+**Settings** are `KEY=value` lines in `/data/usb-gadget.conf`, written by `deckd`. A missing or invalid value means
+the default:
 
 | Key | Default | Set |
 |---|---|---|
 | `drive` | `1`: the USB drive is on | `0`: no USB drive |
-| `net4` | The `/30` derived from the serial (below) | An IPv4 address: the D200 uses the `/30` holding it (the D200 first, the PC second). A dotted quad without leading zeros, first number 1-223 and not 127 |
+| `net4` | The `/30` derived from the serial (below) | An IPv4 address: the D200 uses the `/30` holding it (the D200 first, the PC second) |
 
-`deckd` writes the file, keeping lines it doesn't know, and runs `/etc/init.d/S30usb-gadget apply`. That changes the
-running gadget only if a setting changed. Then the PC sees the D200 unplugged and plugged back in (and asks for an
-address again), and `/dev/hidg0` and `/dev/hidg1` are recreated, so they must be reopened.
+`/etc/init.d/S30usb-gadget apply` applies a change; the PC then sees the D200 unplugged and plugged back in.
 
-**Remote wakeup:** the configuration has the remote wakeup bit (`bmAttributes` `0xa0`). While the PC has the bus
-suspended (asleep, or the device selectively suspended), writes to `/dev/hidg0` fail with `EAGAIN`; writing `1` to
-`/sys/class/udc/*/srp` signals resume if the PC allowed the D200 to wake it. `deckd` does that on a key press.
+**USB Ethernet:** the D200 is `d200-<serial>.local` over mDNS (`<serial>` is the USB serial number, lowercase);
+debug builds: `ssh root@d200-<serial>.local`. Each D200 has its own addresses, derived from its serial, so several
+D200s on one PC don't clash:
 
-**USB Ethernet:** the D200 is `d200-<serial>.local` over mDNS, where `<serial>` is its USB serial number (the CPU
-serial, lowercase); debug builds: `ssh root@d200-<serial>.local`. Each D200 has its own addresses, derived from the
-serial so several D200s on one PC don't clash. `deckd usb-net` computes them (d200-deck's
-[`netid`](https://github.com/riptidewave93/d200-deck/tree/main/netid)) for `S30usb-gadget`:
-
-- IPv4: a `/30` in `198.18.0.0/15`. The D200 is the first address; its DHCP server gives the PC the second, with no
-  gateway and no DNS, so the PC keeps its normal network.
-- IPv6: a ULA `/64`. The D200 is `::1`; its router advertisements let the PC pick its own address, with router
-  lifetime 0 (no default route through the D200).
+- IPv4: a `/30` in `198.18.0.0/15`. The D200 is the first address; its DHCP server gives the PC the second, with
+  no gateway and no DNS, so the PC keeps its normal network.
+- IPv6: a ULA `/64`. The D200 is `::1`; the PC picks its own address, with no default route through the D200.
 - Without a CPU serial: `172.31.254.1/30`, IPv4 only.
-- `net4` in the settings replaces the IPv4 `/30`.
-- MAC addresses: derived from the CPU serial, so they stay the same across boots.
 
-Sandboxed apps on Linux (e.g. Flatpak browsers) often can't resolve `.local` names, so the PC app opens the
-D200's IPv4 address, not its mDNS name.
-
-Proxy tools in "fake-IP" mode (Clash, sing-box, Surge) use `198.18.0.0/15` too; only the D200's own 4 addresses are
-affected, and `net4` moves them elsewhere.
-
-**Every OUT endpoint must always have a reader on the D200.** The controller has a single RX FIFO for all of them
-([hardware.md](hardware.md#usb)), so data sent to a function nobody reads blocks it and stalls every function, USB
-Ethernet included. NCM and mass storage always read theirs. The keyboard HID takes its LED reports over the control
-endpoint instead of an OUT endpoint. The config channel has an OUT endpoint, since output reports over the control
-endpoint cost 1 ms per 64 bytes (the PC retries each NAKed packet a frame later); kernel patch 0016 keeps f_hid
-taking its data when `deckd` doesn't read, dropping the oldest unread report. For the same reason there is no USB
-serial port: a PC probing it for a modem would stall everything.
+Proxy tools in "fake-IP" mode (Clash, sing-box, Surge) also use `198.18.0.0/15`; if one clashes, move the D200
+with `net4`.
 
 ## Display and keys
 
 | Item | Value |
 |---|---|
 | Display | `/dev/dri/card0` (driver `rockchip`), one DPI connector, one mode: 720x1280 at ~36 Hz |
-| Orientation | The panel is portrait, mounted in a landscape device: the connector's `panel orientation` property is **Right Side Up**. The kernel does not rotate; userspace draws rotated |
-| Buffers | KMS dumb buffers (XRGB8888, ~3.5 MiB each) from a 12 MiB CMA area: no IOMMU on the VOP |
-| Console | None on the screen (no fbdev, no fbcon). The U-Boot logo goes away when the display driver loads; the screen stays dark until a program sets a mode |
-| Panel | Generic `rockchip,cmd-panel` driver, reading the same panel node as U-Boot ([hardware.md](hardware.md#display)) |
+| Orientation | The panel is portrait in a landscape device (`panel orientation`: Right Side Up). The kernel doesn't rotate; userspace draws rotated |
+| Backlight | `/sys/class/backlight/backlight`, levels 0-255, 255 at boot |
 | Keys | `/dev/input/event0` ("keypad"), one press/release per key, no autorepeat |
 
 Key codes, in reading order (as seen from the front):

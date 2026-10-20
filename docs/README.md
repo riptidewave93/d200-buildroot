@@ -13,10 +13,10 @@ Working on the firmware:
 | Doc | Read it for |
 |---|---|
 | [flashing.md](flashing.md) | `flash-fastboot.sh` options, fastboot commands, the images, the NAND layout, a custom boot screen |
-| [hardware.md](hardware.md) | SoC, storage, display, keys, screen layout, USB, OTP, test points |
-| [u-boot.md](u-boot.md) | The U-Boot port, its patches, and how to change them |
+| [hardware.md](hardware.md) | SoC, storage, display, keys, screen layout, test points |
+| [u-boot.md](u-boot.md) | The U-Boot port, boot screens, and how to change the patches |
 | [linux.md](linux.md) | The kernel, root filesystem and USB functions |
-| [ota.md](ota.md) | A/B updates: slots, boot counter, the update bundle, the updater spec |
+| [ota.md](ota.md) | A/B updates: slots, boot counter, the update bundle, signing |
 | [read-unlock/](read-unlock/README.md) | Building the patched loader for a full-flash backup without `adb` |
 | [todo.md](todo.md) | Open items |
 

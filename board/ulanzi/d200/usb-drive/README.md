@@ -5,8 +5,7 @@ Firmware @VERSION@ (@FLAVOR@ build). This drive is read-only.
 
 ## Get started
 
-- For the best experience and integration, we recommend installing our
-  companion app (Windows/Linux):
+- Install the PC app, deckhost (Windows/Linux):
   https://github.com/riptidewave93/d200-deck/blob/main/docs/install.md
 - Configure your keys:
   https://riptidewave93.github.io/d200-configure/

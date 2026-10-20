@@ -74,7 +74,7 @@ if [ -f "$BINARIES_DIR/Image.gz" ]; then
 
 	# Update bundle: manifest.json, then the images in write order
 	# (target:file, or target:file:optional). MIN_UPDATER and
-	# MIN_UPDATER_RELEASE: see docs/ota.md#compatibility
+	# MIN_UPDATER_RELEASE: see docs/ota.md#bundle
 	IMAGES="idbloader:idbloader.img u-boot:u-boot.itb kernel:kernel.itb rootfs:rootfs.ubifs"
 	MIN_UPDATER=1
 	MIN_UPDATER_RELEASE=

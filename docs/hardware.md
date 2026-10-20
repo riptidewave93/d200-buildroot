@@ -11,7 +11,8 @@ port.
 | Display | 720x1280 RGB panel (NewVision **NV3052C**), mounted rotated, used as 1280x720 landscape |
 | Keys | 5x3 GPIO matrix (bottom-right key is double-wide) |
 | Console | UART2 (TX GPIO4_D2, RX GPIO4_D3), **1500000 8N1** |
-| USB | USB-C, DWC2 OTG controller in device mode (maskrom, fastboot, Linux gadget) |
+| USB | USB-C, DWC2 controller in device mode (maskrom, fastboot, Linux gadget) |
+| Serial number | The CPU serial from OTP: the USB serial number and the source of the network addresses |
 
 ## Boot
 
@@ -29,16 +30,12 @@ enters **maskrom**: USB device `2207:330e`, driven by `rkdeveloptool`.
 | 816 MHz | 1.00 V | maximum enabled; U-Boot runs here (at 1.015 V) |
 | 1008, 1104 MHz | 1.125, 1.20 V | disabled, as in the vendor firmware |
 
-- Linux scales between these with `schedutil` (operating points from the vendor DT, in `rk3308bs.dtsi`).
-- Above **90 °C** Linux lowers the clock, at **115 °C** it shuts down, at **120 °C** the TSADC resets the SoC. Idle
-  is about 34 °C, all 4 cores busy about 38 °C.
-- No CPU idle states: the rkbin BL31 doesn't support PSCI `CPU_SUSPEND`, so idle cores use WFI.
+Above **90 °C** Linux lowers the clock, at **115 °C** it shuts down, at **120 °C** the SoC resets. Idle is about
+30-34 °C.
 
 ## Display
 
-U-Boot and Linux both drive the panel from the same `rockchip,cmd-panel` node in `rk3308-ulanzi-d200.dts` (timings,
-init sequence over bit-banged SPI). 720x1280 at ~36 Hz; software draws in landscape and rotates. Linux side:
-[linux.md](linux.md#display-and-keys).
+U-Boot and Linux drive the panel from the same `rockchip,cmd-panel` node in `rk3308-ulanzi-d200.dts`.
 
 ### Screen layout
 
@@ -58,18 +55,6 @@ Key codes: [linux.md](linux.md#display-and-keys); key numbers in the config:
 bootloader:
 - **Top-left**: "Hold for Fastboot" in U-Boot.
 - **Top-left + bottom-left**: maskrom from SPL.
-
-## USB
-
-- Up to 6 IN endpoints at once; at most 3 high-speed bulk IN endpoints (FIFO sizes as in the vendor firmware).
-- **One RX FIFO for all OUT endpoints:** if data arrives for an OUT endpoint nobody reads, it blocks every other OUT
-  endpoint (see [linux.md](linux.md#usb)).
-
-## OTP (CPU ID / serial)
-
-The CPU serial (USB serial number, MAC addresses) is read from OTP. On the RK3308B-S, SPL must first hand the OTP to
-the non-secure controller (clear SGRF_SOC_CON1 bit 2), or every read returns `0xff`. Rockchip's closed loaders do
-this step; their open U-Boot and kernel sources don't.
 
 ## Test points
 

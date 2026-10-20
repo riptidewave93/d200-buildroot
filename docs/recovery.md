@@ -23,8 +23,7 @@ fastboot devices          # shows the board's serial
 
 ### 1.2 Maskrom keys
 From a debug build's shell: `reboot-to maskrom`. Or hold the **top-left and bottom-left keys** while plugging in
-USB-C. SPL checks them first thing, before DRAM and the NAND are set up, so this works even when U-Boot proper is
-broken. The screen stays dark.
+USB-C. This works even when U-Boot is broken. The screen stays dark.
 
 Then run U-Boot from RAM and continue as in 1.1:
 ```bash
@@ -58,7 +57,7 @@ Flashing over the UART alone (slow, for when USB is unusable): load each file wi
 For when SPL/IDB itself is broken, so neither the keys nor Ctrl-B work. The short stops the BootROM from reading the
 flash, so it falls back to maskrom.
 
-1. **Unplug the UART adapter.** It back-powers the SoC through TX, and then the BootROM doesn't start fresh.
+1. **Unplug the UART adapter.** It back-powers the SoC, and the short then doesn't work.
 2. Hold one of these shorts:
    - **R9602**: the pad nearest the SoC to GND (a mounting screw works). This is Ulanzi's documented method.
    - **SPI NAND** (WSON-8): **pin 1 (CS#) to pin 8 (VCC)**. They are adjacent. Never bridge VCC to GND.
