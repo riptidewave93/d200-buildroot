@@ -9,6 +9,7 @@ PIDFILE=/var/run/deckd.pid
 # deckd rewrites it at least every 10 s with new content (a heartbeat)
 ALIVE=/run/deckd.alive
 HUNG=60
+CHECK_EVERY=5
 
 # Run deckd until it exits. Kill it if its heartbeat stops for HUNG seconds;
 # without a heartbeat file (an older deckd), only its exit counts.
@@ -19,11 +20,11 @@ run() {
 	last=
 	same=0
 	while kill -0 $job 2>/dev/null; do
-		sleep 1
+		sleep $CHECK_EVERY
 		beat=
 		read -r beat < $ALIVE 2>/dev/null
 		if [ -n "$beat" ] && [ "$beat" = "$last" ]; then
-			same=$((same + 1))
+			same=$((same + CHECK_EVERY))
 		else
 			same=0
 		fi
