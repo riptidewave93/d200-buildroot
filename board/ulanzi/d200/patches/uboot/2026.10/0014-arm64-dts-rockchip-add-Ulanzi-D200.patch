@@ -27,16 +27,16 @@ SPI NAND layout:
 
 Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
 ---
- .../src/arm64/rockchip/rk3308-ulanzi-d200.dts | 373 ++++++++++++++++++
- 1 file changed, 373 insertions(+)
+ .../src/arm64/rockchip/rk3308-ulanzi-d200.dts | 374 ++++++++++++++++++
+ 1 file changed, 374 insertions(+)
  create mode 100644 dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
 
 diff --git a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
 new file mode 100644
-index 00000000..7acf4aa6
+index 00000000..1def9132
 --- /dev/null
 +++ b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
-@@ -0,0 +1,373 @@
+@@ -0,0 +1,374 @@
 +// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 +/*
 + * Ulanzi D200 stream controller (RK3308B-S, 128 MiB DDR3, GD5F2GM7 SPI NAND,
@@ -64,8 +64,9 @@ index 00000000..7acf4aa6
 +	backlight: backlight {
 +		compatible = "pwm-backlight";
 +		pwms = <&pwm1 0 25000 0>;
-+		brightness-levels = <0 32 64 96 128 160 192 224 255>;
-+		default-brightness-level = <8>;	/* 100% during boot */
++		brightness-levels = <0 255>;
++		num-interpolated-steps = <255>;
++		default-brightness-level = <255>;	/* 100% during boot */
 +	};
 +
 +	/*

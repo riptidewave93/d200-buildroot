@@ -409,10 +409,10 @@ index 00000000..87e6a68f
 +CONFIG_CONSOLE_RECORD=y
 +CONFIG_FASTBOOT_CMD_OEM_CONSOLE=y
 diff --git a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
-index 7acf4aa6..c279b4a7 100644
+index 1def9132..f890ad31 100644
 --- a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
 +++ b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
-@@ -369,5 +369,11 @@
+@@ -370,5 +370,11 @@
  
  &usb20_otg {
  	dr_mode = "peripheral";
