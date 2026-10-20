@@ -19,6 +19,8 @@ running U-Boot.
 
 The default env moves to a text file, and fastboot writes idbloader at
 fixed offsets.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
 ---
  board/ulanzi/d200/ulanzi-d200.env    | 35 ++++++++++++++++++++++++++++
  configs/ulanzi-d200-rk3308_defconfig | 11 ++++++++-

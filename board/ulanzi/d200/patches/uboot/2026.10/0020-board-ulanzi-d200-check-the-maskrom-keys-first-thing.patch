@@ -12,6 +12,8 @@ useless.
 Check them in board_early_init_f() instead, the first thing SPL runs.
 Only the secure timer is set up first, for the delays, and as there is
 no sysreset driver yet the reset goes through the CRU directly.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
 ---
  board/ulanzi/d200/Makefile           |  2 +-
  board/ulanzi/d200/spl.c              | 29 ++++++++++++++++++++--------

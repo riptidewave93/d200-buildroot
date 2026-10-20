@@ -12,6 +12,8 @@ written block for block: a bad block in the way fails the write instead
 of being skipped. Blocks are written from the last to the first, so the
 first block of each copy, which the boot ROM checks, is written after
 the rest of that copy.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
 ---
  drivers/fastboot/Kconfig  | 12 +++++++
  drivers/fastboot/fb_mtd.c | 75 ++++++++++++++++++++++++++++++++++++++-
