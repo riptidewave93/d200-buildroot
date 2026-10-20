@@ -1,0 +1,57 @@
+name: Build
+
+# A full release build on every push to main, and on pull requests that change
+# what goes into the image (drop "paths" to build every pull request)
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'board/**'
+      - 'package/**'
+      - 'configs/**'
+      - 'depends/**'
+      - 'scripts/**'
+      - 'Makefile'
+      - 'external.mk'
+      - 'Config.in'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # the version comes from git describe, U-Boot's date from git log
+
+      - name: Restore the download cache
+        uses: actions/cache/restore@v6
+        with:
+          path: preserve/dl
+          key: dl-release-${{ hashFiles('Makefile', 'configs/*', 'board/ulanzi/d200/*.fragment', 'package/*/*.mk') }}
+          restore-keys: |
+            dl-release-
+            dl-
+
+      - name: Build
+        run: make build
+
+      - name: Save the download cache
+        if: always() && github.event_name == 'push'
+        uses: actions/cache/save@v6
+        with:
+          path: preserve/dl
+          key: dl-release-${{ hashFiles('Makefile', 'configs/*', 'board/ulanzi/d200/*.fragment', 'package/*/*.mk') }}

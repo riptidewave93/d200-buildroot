@@ -14,7 +14,7 @@ DOCKER_RUN := docker run --rm $(shell [ -t 0 ] && echo -it) \
 	--user $(shell id -u):$(shell id -g) -e HOME=/tmp \
 	-e FLAVOR=$(FLAVOR) -e KEEP=$(KEEP) -e D200_SIGNING_KEY -v "$(REPO_DIR)":/repo:Z -w /repo --name $(DOCKER_NAME) $(DOCKER_IMAGE)
 
-.PHONY: build builder-build build-builder-docker shell clean reset
+.PHONY: build builder-build build-builder-docker shell clean reset check
 
 # Build everything inside the builder container: make [FLAVOR=debug]
 build : build-builder-docker
@@ -38,6 +38,13 @@ shell : build-builder-docker
 # config: make uboot-rebuild, make linux-rebuild FLAVOR=debug, make busybox-rebuild
 %-rebuild : build-builder-docker
 	$(DOCKER_RUN) /repo/scripts/rebuild_package.sh $* $(FLAVOR)
+
+# Quick checks without a full build (scripts/check.sh): make check, or one of
+# make check-lint, check-config, check-patches
+check : check-lint check-config check-patches
+
+check-% : build-builder-docker
+	$(DOCKER_RUN) /repo/scripts/check.sh $* $(BUILDROOT_REPO) $(BUILDROOT_VER)
 
 clean :
 	rm -rf ./BuildEnv ./output

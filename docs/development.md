@@ -16,6 +16,7 @@ Other targets:
 make linux-rebuild   # rebuild one package from scratch and collect the images, e.g. after changing
                      # its patches or config (works for any package: uboot-rebuild, busybox-rebuild, ...;
                      # add FLAVOR=debug for the debug build)
+make check           # quick checks without a full build, as CI runs them (check-lint, -config, -patches)
 make shell           # shell in the builder container (Buildroot is in BuildEnv/buildroot)
 make clean           # remove BuildEnv/ and output/
 make reset           # clean + remove the download cache (preserve/) and the builder image
