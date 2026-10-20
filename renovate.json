@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits"],
+  "enabledManagers": ["custom.regex", "github-actions"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "d200-deck's release in the firmware (a tag; a commit hash isn't tracked)",
+      "managerFilePatterns": ["/^package/d200-deck/d200-deck\\.mk$/"],
+      "matchStrings": ["D200_DECK_VERSION = (?<currentValue>v\\d+\\.\\d+\\.\\d+\\S*)"],
+      "datasourceTemplate": "github-tags",
+      "depNameTemplate": "riptidewave93/d200-deck"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "d200-deck: its own PR as soon as it releases",
+      "matchDepNames": ["riptidewave93/d200-deck"],
+      "semanticCommitType": "feat",
+      "semanticCommitScope": "deck"
+    },
+    {
+      "description": "GitHub Actions: one PR a week",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "schedule": ["* 0-5 * * 1"],
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps"
+    }
+  ]
+}
