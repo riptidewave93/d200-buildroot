@@ -42,7 +42,7 @@ builds have neither. Services:
 |---|---|
 | `S00data` | Mounts the UBI volume `data` at `/data` (formats it if it doesn't mount, erases it on a device reset), empties `/data/update`, restores the clock |
 | `S10loopback` | Brings up `lo` |
-| `S15watchdog` | Feeds `/dev/watchdog` (60 s timeout, started by U-Boot) |
+| `S15watchdog` | Feeds `/dev/watchdog` every 5 s (60 s timeout); if Linux hangs, the D200 resets. U-Boot starts the watchdog |
 | `S30usb-gadget` | USB functions, USB Ethernet addresses, DHCP server and IPv6 router advertisements, the hostname `d200-<serial>`. `apply` applies the USB settings ([USB](#usb)) |
 | `S50dropbear` | Debug builds only. SSH and SFTP on USB Ethernet; root without a password |
 | `S50mdnsd` | mDNS: `d200-<serial>.local` and the web server (`_http._tcp`), plus SSH in debug builds |
