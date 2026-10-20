@@ -26,8 +26,8 @@ Open-source replacement firmware for the **Ulanzi D200** stream controller, buil
 
 | Repo | What |
 |---|---|
-| [d200-buildroot](https://github.com/riptidewave93/d200-buildroot) | The firmware; installing, updating, recovery |
-| [d200-deck](https://github.com/riptidewave93/d200-deck) | `deckd` (keys and update page on the D200), `deckhost` (the PC helper), the config format and USB API |
+| [d200-buildroot](https://github.com/riptidewave93/d200-buildroot) | The firmware: installing, updating, recovery |
+| [d200-deck](https://github.com/riptidewave93/d200-deck) | The keys on the D200, and the PC helper |
 | [d200-configure](https://github.com/riptidewave93/d200-configure) | The configuration website: https://riptidewave93.github.io/d200-configure/ |
 
 ## Building
