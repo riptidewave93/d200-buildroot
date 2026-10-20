@@ -6,10 +6,8 @@ Subject: [PATCH] usb: gadget: f_hid: keep the OUT endpoint taking data when
 
 f_hid queues its OUT requests again only when userspace reads them, so
 an interrupt OUT endpoint stops taking data once qlen reports are
-waiting. On controllers with one RX FIFO for all OUT endpoints, such as
-dwc2, an OUT endpoint that stops taking data can stall every other
-function of the gadget: with a reader stopped and a host writing to the
-HID function, a USB Ethernet function on the same gadget stopped
+waiting. On dwc2 (RK3308), with the reader stopped and a host writing
+to the HID function, a USB Ethernet function on the same gadget stopped
 passing traffic.
 
 Count the queued OUT requests, and when the last one completes while
