@@ -67,7 +67,7 @@ stop() {
 	start-stop-daemon -K -q -p $PIDFILE
 	killall deckd 2>/dev/null
 	# the display stays busy until deckd has exited; a hung one is killed
-	for i in $(seq 50); do
+	for _ in $(seq 50); do
 		pidof deckd >/dev/null || break
 		sleep 0.1
 	done

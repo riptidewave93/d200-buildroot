@@ -7,6 +7,7 @@
 #   d200-<version>-<flavour>-update.tar      for the update page (ota.md)
 #   collect_output.sh [release|debug]
 set -e
+# shellcheck source=scripts/buildroot-env.sh
 . "$(dirname "${BASH_SOURCE[0]}")/buildroot-env.sh" "${1}"
 images="${brout}/images"
 out="${ourpath}/output/$(date +%Y%m%d-%H%M)-${flavor}"

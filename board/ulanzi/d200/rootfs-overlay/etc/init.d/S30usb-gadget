@@ -122,7 +122,7 @@ addresses() {
 	DEV_IP6=
 	NET6=
 	out=$(/usr/bin/deckd usb-net) || return 0
-	while IFS== read -r k v; do
+	while IFS="=" read -r k v; do
 		case "$k" in
 		DEV_IP4) DEV_IP4=$v ;;
 		PEER_IP4) PEER_IP4=$v ;;
@@ -138,7 +138,7 @@ stop_pid() {
 	[ -f "$1" ] || return 0
 	p=$(cat "$1")
 	kill "$p" 2>/dev/null
-	for i in 1 2 3 4 5; do
+	for _ in 1 2 3 4 5; do
 		kill -0 "$p" 2>/dev/null || break
 		sleep 1
 	done

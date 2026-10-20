@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Sourced by the build scripts. Sets up Buildroot for flavour $1:
 #   release (default): no SSH, no root shell, U-Boot console locked down
 #   debug: release + SSH, a root shell on the UART and debug tools
