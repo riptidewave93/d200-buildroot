@@ -142,6 +142,8 @@ what was already written; every step is compatible with the running system.
    `/proc/cmdline`). Never take it from the env's `slot`, which can name a slot that doesn't boot:
    - If the volume is missing, create it (`UBI_IOCMKVOL` on `/dev/ubi0`, with its fixed ID, type and size from
      the layout table); if it is smaller than the image, grow it (`UBI_IOCRSVOL`).
+   - A static volume (the kernel) that already holds the image (its data has the image's size and sha256) is left
+     alone. Kernel builds are reproducible, so most updates write only the rootfs.
    - `UBI_IOCVOLUP` with the image size on `/dev/ubi0_<id>`, write the image, close, read back and compare
      sha256.
    - A volume that fails twice is truncated (`UBI_IOCVOLUP` with size 0).
