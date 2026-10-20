@@ -4,6 +4,10 @@
 # formats it on the first mount; if it won't mount, it is emptied and formatted
 # again. /data/update holds an incoming update and is emptied at every boot.
 #
+# Device reset: deckd writes /data/.reset and reboots, and the whole volume is
+# erased here, before anything uses it. UBI marks the volume while erasing it,
+# so after a power cut it won't mount and the next boot erases it again.
+#
 # The clock: there is no RTC. It starts from /data/clock (Unix seconds, saved
 # by deckd and at shutdown) or the build time, whichever is later; deckd sets
 # it from the PC.
@@ -14,12 +18,18 @@ VOL=/dev/ubi0_6
 # LZO, the compressor every kernel here has, so an older slot can mount it
 OPTS=compr=lzo
 CLOCK=/data/clock
+RESET=/data/.reset
 
 # BUILD_ID (YYYYMMDDHHMM, UTC) as Unix seconds
 build_time() {
 	. /usr/lib/os-release
 	date -u -d "$(echo "$BUILD_ID" |
 		sed 's/^\(....\)\(..\)\(..\)\(..\)\(..\)$/\1-\2-\3 \4:\5/')" +%s 2>/dev/null
+}
+
+# empty the volume; the kernel formats it as it mounts
+format() {
+	ubiupdatevol -t "$VOL" && mount -t ubifs -o $OPTS "$DEV" /data
 }
 
 restore_clock() {
@@ -41,10 +51,15 @@ case "$1" in
 		if ! mount -t ubifs -o $OPTS "$DEV" /data 2>/dev/null; then
 			printf "unusable, formatting: "
 			echo "S00data: /data didn't mount, formatting it" > /dev/kmsg
-			ubiupdatevol -t "$VOL" && mount -t ubifs -o $OPTS "$DEV" /data ||
-				{ echo "FAIL"; exit 1; }
+			format || { echo "FAIL"; exit 1; }
 		fi
+		# the clock first, so it survives a reset
 		restore_clock
+		if [ -e $RESET ]; then
+			printf "device reset, erasing: "
+			echo "S00data: device reset, erasing /data" > /dev/kmsg
+			umount /data && format || { echo "FAIL"; exit 1; }
+		fi
 		rm -rf /data/update
 		mkdir -p /data/update
 		# debug builds: the SSH host key (/etc/dropbear links here)

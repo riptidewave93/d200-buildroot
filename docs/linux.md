@@ -40,7 +40,7 @@ builds have neither. Services:
 
 | Service | What |
 |---|---|
-| `S00data` | Mounts the UBI volume `data` at `/data` (formats it if it doesn't mount), empties `/data/update`, restores the clock |
+| `S00data` | Mounts the UBI volume `data` at `/data` (formats it if it doesn't mount, erases it on a device reset), empties `/data/update`, restores the clock |
 | `S10loopback` | Brings up `lo` |
 | `S15watchdog` | Feeds `/dev/watchdog` (60 s timeout, started by U-Boot) |
 | `S30usb-gadget` | USB functions, USB Ethernet addresses, DHCP server and IPv6 router advertisements, the hostname `d200-<serial>`. `apply` applies the USB settings ([USB](#usb)) |
@@ -53,7 +53,9 @@ Files added to Buildroot's default skeleton live in `board/ulanzi/d200/rootfs-ov
 
 The root filesystem is read-only. What's kept across boots lives in `/data` (100 MiB): the key app's config, the
 USB settings, the saved clock, the random seed, the SSH host key (debug builds) and an incoming update. Logs,
-leases and PID files stay in RAM. The U-Boot env is read and written with `fw_printenv` / `fw_setenv`.
+leases and PID files stay in RAM. A device reset (`/data/.reset`, written by `deckd`) erases all of `/data` at the
+next boot, and everything comes back with its defaults. The U-Boot env is read and written with `fw_printenv` /
+`fw_setenv`.
 
 **Clock:** there is no RTC. The clock starts from the time saved in `/data/clock` or the build time, whichever is
 later. `deckd` sets it from the PC when the PC app connects, and saves it.
