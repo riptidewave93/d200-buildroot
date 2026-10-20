@@ -32,6 +32,7 @@ The kernel has slot A's line built in, for when U-Boot passes none.
   | 0014 | DWC2 remote wakeup | A key press can wake the PC |
   | 0015 | f_hid: wMaxPacketSize per speed | Valid descriptors at full speed for reports over 64 bytes |
   | 0016 | f_hid: keep the OUT endpoint taking data | An unread OUT endpoint can't stall the other functions |
+  | 0017 | DWC2: report bus suspend in the gadget state | `/sys/class/udc/*/state` reads `suspended` while the PC has the bus suspended |
 - Config: `board/ulanzi/d200/linux.config`, started from `allnoconfig`. Everything is built in, no modules:
   - SoC: clocks, pinctrl, GPIO, UART, watchdog;
   - storage: SPI NAND, UBI, UBIFS (LZO only; the rootfs is built with LZO);

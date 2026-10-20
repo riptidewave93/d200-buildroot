@@ -1,0 +1,150 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Tue, 20 Oct 2026 07:55:07 -0500
+Subject: [PATCH] usb: dwc2: gadget: report bus suspend in the gadget state
+
+The gadget state stays "configured" while the host has the bus
+suspended, so the UDC's state attribute never reads "suspended" and
+userspace can't tell that the host stopped the bus, e.g. because it
+went to sleep.
+
+Set USB_STATE_SUSPENDED when the bus is suspended (L2) and restore the
+previous state when it resumes, as other UDC drivers do. A reset or
+disconnect during the suspend sets its own state, which is kept. LPM
+L1 sleep is left as it is.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ drivers/usb/dwc2/core.h      |  6 ++++++
+ drivers/usb/dwc2/core_intr.c |  4 ++++
+ drivers/usb/dwc2/gadget.c    | 29 +++++++++++++++++++++++++++++
+ 3 files changed, 39 insertions(+)
+
+diff --git a/drivers/usb/dwc2/core.h b/drivers/usb/dwc2/core.h
+index 767251aa1..2ca09c3f4 100644
+--- a/drivers/usb/dwc2/core.h
++++ b/drivers/usb/dwc2/core.h
+@@ -1016,6 +1016,7 @@ struct dwc2_hregs_backup {
+  * @test_mode:          USB test mode requested by the host
+  * @remote_wakeup_allowed: True if device is allowed to wake-up host by
+  *                      remote-wakeup signalling
++ * @suspended_from:     Gadget state before the bus was suspended
+  * @setup_desc_dma:	EP0 setup stage desc chain DMA address
+  * @setup_desc:		EP0 setup stage desc chain pointer
+  * @ctrl_in_desc_dma:	EP0 IN data phase desc chain DMA address
+@@ -1223,6 +1224,7 @@ struct dwc2_hsotg {
+ 	unsigned int enabled:1;
+ 	unsigned int connected:1;
+ 	unsigned int remote_wakeup_allowed:1;
++	enum usb_device_state suspended_from;
+ 	struct dwc2_hsotg_ep *eps_in[MAX_EPS_CHANNELS];
+ 	struct dwc2_hsotg_ep *eps_out[MAX_EPS_CHANNELS];
+ #endif /* CONFIG_USB_DWC2_PERIPHERAL || CONFIG_USB_DWC2_DUAL_ROLE */
+@@ -1436,6 +1438,8 @@ int dwc2_gadget_exit_partial_power_down(struct dwc2_hsotg *hsotg,
+ void dwc2_gadget_enter_clock_gating(struct dwc2_hsotg *hsotg);
+ void dwc2_gadget_exit_clock_gating(struct dwc2_hsotg *hsotg,
+ 				   int rem_wakeup);
++void dwc2_gadget_bus_suspended(struct dwc2_hsotg *hsotg);
++void dwc2_gadget_bus_resumed(struct dwc2_hsotg *hsotg);
+ int dwc2_hsotg_tx_fifo_count(struct dwc2_hsotg *hsotg);
+ int dwc2_hsotg_tx_fifo_total_depth(struct dwc2_hsotg *hsotg);
+ int dwc2_hsotg_tx_fifo_average_depth(struct dwc2_hsotg *hsotg);
+@@ -1483,6 +1487,8 @@ static inline int dwc2_gadget_exit_partial_power_down(struct dwc2_hsotg *hsotg,
+ static inline void dwc2_gadget_enter_clock_gating(struct dwc2_hsotg *hsotg) {}
+ static inline void dwc2_gadget_exit_clock_gating(struct dwc2_hsotg *hsotg,
+ 						 int rem_wakeup) {}
++static inline void dwc2_gadget_bus_suspended(struct dwc2_hsotg *hsotg) {}
++static inline void dwc2_gadget_bus_resumed(struct dwc2_hsotg *hsotg) {}
+ static inline int dwc2_hsotg_tx_fifo_count(struct dwc2_hsotg *hsotg)
+ { return 0; }
+ static inline int dwc2_hsotg_tx_fifo_total_depth(struct dwc2_hsotg *hsotg)
+diff --git a/drivers/usb/dwc2/core_intr.c b/drivers/usb/dwc2/core_intr.c
+index a123fb2c6..0e3fdcf63 100644
+--- a/drivers/usb/dwc2/core_intr.c
++++ b/drivers/usb/dwc2/core_intr.c
+@@ -440,6 +440,7 @@ static void dwc2_handle_wakeup_detected_intr(struct dwc2_hsotg *hsotg)
+ 				if (ret)
+ 					dev_err(hsotg->dev,
+ 						"exit partial_power_down failed\n");
++				dwc2_gadget_bus_resumed(hsotg);
+ 				call_gadget(hsotg, resume);
+ 			}
+ 
+@@ -452,6 +453,7 @@ static void dwc2_handle_wakeup_detected_intr(struct dwc2_hsotg *hsotg)
+ 			/* No power saving to exit: just resume */
+ 			if (hsotg->lx_state == DWC2_L2) {
+ 				hsotg->lx_state = DWC2_L0;
++				dwc2_gadget_bus_resumed(hsotg);
+ 				call_gadget(hsotg, resume);
+ 			}
+ 		} else {
+@@ -580,6 +582,7 @@ static void dwc2_handle_usb_suspend_intr(struct dwc2_hsotg *hsotg)
+ 			 * spinlock
+ 			 */
+ 			hsotg->lx_state = DWC2_L2;
++			dwc2_gadget_bus_suspended(hsotg);
+ 
+ 			/* Call gadget suspend callback */
+ 			call_gadget(hsotg, suspend);
+@@ -802,6 +805,7 @@ static int dwc2_handle_gpwrdn_intr(struct dwc2_hsotg *hsotg)
+ 				if (ret)
+ 					dev_err(hsotg->dev,
+ 						"exit hibernation failed.\n");
++				dwc2_gadget_bus_resumed(hsotg);
+ 				call_gadget(hsotg, resume);
+ 			} else {
+ 				ret = dwc2_exit_hibernation(hsotg, 1, 0, 1);
+diff --git a/drivers/usb/dwc2/gadget.c b/drivers/usb/dwc2/gadget.c
+index 4584441e1..b78fc5551 100644
+--- a/drivers/usb/dwc2/gadget.c
++++ b/drivers/usb/dwc2/gadget.c
+@@ -4806,6 +4806,7 @@ static int dwc2_hsotg_wakeup(struct usb_gadget *gadget)
+ 	dwc2_clear_bit(hsotg, DCTL, DCTL_RMTWKUPSIG);
+ 	if (hsotg->lx_state == DWC2_L2) {
+ 		hsotg->lx_state = DWC2_L0;
++		dwc2_gadget_bus_resumed(hsotg);
+ 		call_gadget(hsotg, resume);
+ 	}
+ 	spin_unlock_irqrestore(&hsotg->lock, flags);
+@@ -5719,6 +5720,33 @@ int dwc2_gadget_exit_partial_power_down(struct dwc2_hsotg *hsotg,
+ 	return ret;
+ }
+ 
++/**
++ * dwc2_gadget_bus_suspended() - Report a bus suspend in the gadget state.
++ *
++ * @hsotg: Programming view of the DWC_otg controller
++ */
++void dwc2_gadget_bus_suspended(struct dwc2_hsotg *hsotg)
++{
++	if (hsotg->gadget.state == USB_STATE_SUSPENDED)
++		return;
++
++	hsotg->suspended_from = hsotg->gadget.state;
++	usb_gadget_set_state(&hsotg->gadget, USB_STATE_SUSPENDED);
++}
++
++/**
++ * dwc2_gadget_bus_resumed() - Restore the gadget state after a bus resume.
++ *
++ * @hsotg: Programming view of the DWC_otg controller
++ *
++ * A reset or disconnect during the suspend has set a new state; keep it.
++ */
++void dwc2_gadget_bus_resumed(struct dwc2_hsotg *hsotg)
++{
++	if (hsotg->gadget.state == USB_STATE_SUSPENDED)
++		usb_gadget_set_state(&hsotg->gadget, hsotg->suspended_from);
++}
++
+ /**
+  * dwc2_gadget_enter_clock_gating() - Put controller in clock gating.
+  *
+@@ -5785,6 +5813,7 @@ void dwc2_gadget_exit_clock_gating(struct dwc2_hsotg *hsotg, int rem_wakeup)
+ 	}
+ 
+ 	/* Change to L0 state */
++	dwc2_gadget_bus_resumed(hsotg);
+ 	call_gadget(hsotg, resume);
+ 	hsotg->lx_state = DWC2_L0;
+ 	hsotg->bus_suspended = false;
