@@ -10,18 +10,19 @@ gadget.
 Add it for controllers without partial power down or hibernation: drive
 resume signalling for 10 ms if the host enabled remote wakeup, leaving
 clock gating first if it was entered, then move to L0 and call the
-gadget's resume callback.
+gadget's resume callback. It fails with -EINVAL if the bus isn't
+suspended, and with -EPERM if the host didn't enable remote wakeup.
 
 Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
 ---
- drivers/usb/dwc2/gadget.c | 43 +++++++++++++++++++++++++++++++++++++++
- 1 file changed, 43 insertions(+)
+ drivers/usb/dwc2/gadget.c | 47 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 47 insertions(+)
 
 diff --git a/drivers/usb/dwc2/gadget.c b/drivers/usb/dwc2/gadget.c
-index 102169b40..4584441e1 100644
+index 102169b40..5947a0997 100644
 --- a/drivers/usb/dwc2/gadget.c
 +++ b/drivers/usb/dwc2/gadget.c
-@@ -4771,6 +4771,48 @@ static int dwc2_hsotg_vbus_draw(struct usb_gadget *gadget, unsigned int mA)
+@@ -4771,6 +4771,52 @@ static int dwc2_hsotg_vbus_draw(struct usb_gadget *gadget, unsigned int mA)
  	return usb_phy_set_power(hsotg->uphy, mA);
  }
  
@@ -38,9 +39,13 @@ index 102169b40..4584441e1 100644
 +	unsigned long flags;
 +
 +	spin_lock_irqsave(&hsotg->lock, flags);
-+	if (hsotg->lx_state != DWC2_L2 || !hsotg->remote_wakeup_allowed) {
++	if (hsotg->lx_state != DWC2_L2) {
 +		spin_unlock_irqrestore(&hsotg->lock, flags);
 +		return -EINVAL;
++	}
++	if (!hsotg->remote_wakeup_allowed) {
++		spin_unlock_irqrestore(&hsotg->lock, flags);
++		return -EPERM;
 +	}
 +	if (hsotg->params.power_down != DWC2_POWER_DOWN_PARAM_NONE) {
 +		spin_unlock_irqrestore(&hsotg->lock, flags);
@@ -70,7 +75,7 @@ index 102169b40..4584441e1 100644
  static void dwc2_gadget_set_speed(struct usb_gadget *g, enum usb_device_speed speed)
  {
  	struct dwc2_hsotg *hsotg = to_hsotg(g);
-@@ -4798,6 +4840,7 @@ static const struct usb_gadget_ops dwc2_hsotg_gadget_ops = {
+@@ -4798,6 +4844,7 @@ static const struct usb_gadget_ops dwc2_hsotg_gadget_ops = {
  	.set_selfpowered	= dwc2_hsotg_set_selfpowered,
  	.udc_start		= dwc2_hsotg_udc_start,
  	.udc_stop		= dwc2_hsotg_udc_stop,

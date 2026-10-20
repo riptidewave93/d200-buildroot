@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Tue, 20 Oct 2026 18:10:18 -0500
+Subject: [PATCH] usb: gadget: udc: return the error of a remote wakeup from
+ srp
+
+Writing 1 to the UDC's srp attribute asks the controller to wake the
+host, but the result of usb_gadget_wakeup() is dropped, so the write
+succeeds even when the controller refuses (the bus isn't suspended, or
+the host didn't enable remote wakeup) or can't wake the host at all.
+
+Return the error, so userspace can tell.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ drivers/usb/gadget/udc/core.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/usb/gadget/udc/core.c b/drivers/usb/gadget/udc/core.c
+index f6da12b55..8dae38d5a 100644
+--- a/drivers/usb/gadget/udc/core.c
++++ b/drivers/usb/gadget/udc/core.c
+@@ -1792,9 +1792,13 @@ static ssize_t srp_store(struct device *dev,
+ 		struct device_attribute *attr, const char *buf, size_t n)
+ {
+ 	struct usb_udc		*udc = container_of(dev, struct usb_udc, dev);
++	int			ret;
+ 
+-	if (sysfs_streq(buf, "1"))
+-		usb_gadget_wakeup(udc->gadget);
++	if (sysfs_streq(buf, "1")) {
++		ret = usb_gadget_wakeup(udc->gadget);
++		if (ret)
++			return ret;
++	}
+ 
+ 	return n;
+ }
