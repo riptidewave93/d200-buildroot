@@ -59,7 +59,7 @@ This replaces all stock data. From the image folder:
 **Without `fastboot`:** download the `-maskrom.tar.xz` instead of the `.zip`, unpack it, and from its folder:
 ```bash
 rkdeveloptool db rk3308_loader_wo_ftl.bin    # Rockchip's raw NAND loader
-rkdeveloptool ef                             # erase everything first: leftovers confuse UBI
+rkdeveloptool ef                             # erase everything first
 rkdeveloptool wl 0 d200-full.img
 rkdeveloptool rd
 ```

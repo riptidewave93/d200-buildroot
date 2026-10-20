@@ -1,6 +1,6 @@
 # Ulanzi D200
 
-This D200 runs open-source firmware: mainline Linux and d200-deck.
+This D200 runs open-source firmware.
 Firmware @VERSION@ (@FLAVOR@ build). This drive is read-only.
 
 ## Get started

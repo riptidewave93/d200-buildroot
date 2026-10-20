@@ -1,6 +1,6 @@
 # d200-buildroot
 
-Open-source replacement firmware for the **Ulanzi D200** stream controller, built on mainline U-Boot and Linux.
+Open-source replacement firmware for the **Ulanzi D200** stream controller.
 
 ## What you get
 

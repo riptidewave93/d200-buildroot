@@ -72,9 +72,6 @@ Functions are set in `/etc/default/usb-gadget`:
 | `ncm` | USB Ethernet (built-in driver on Linux, macOS, Windows 10/11) | `usb0`, addresses below |
 | `msc` | Read-only USB drive "D200 DECK" with a README showing the D200's name and addresses | Built from `board/ulanzi/d200/usb-drive/` |
 
-`/sys/class/udc/*/state` reads `suspended` while the PC has the bus suspended (asleep, or off with the port
-powered), and `configured` in normal use.
-
 **Settings** are `KEY=value` lines in `/data/usb-gadget.conf`, written by `deckd`. A missing or invalid value means
 the default:
 

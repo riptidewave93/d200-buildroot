@@ -4,8 +4,7 @@ For backing up the stock firmware from maskrom when `adb` isn't available
 ([install.md](../install.md#1-back-up-the-stock-firmware)).
 
 Stock Rockchip loaders stop reading the flash at **32 MiB**, and reads past it **don't fail**: they return `0xcc`
-filler. The limit is one instruction in rkbin's usbplug blob; `patch_usbplug.py` raises it to "no limit". Only reads
-change; write and erase are untouched.
+filler. `patch_usbplug.py` lifts the limit in rkbin's usbplug. Only reads change; write and erase are untouched.
 
 | File | Use |
 |---|---|

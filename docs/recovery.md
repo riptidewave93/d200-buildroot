@@ -3,21 +3,21 @@
 Getting a D200 working again, easiest first. Most ways end with `./flash-fastboot.sh` in the
 [image folder](install.md#before-you-start). You need `fastboot` and, for maskrom, `rkdeveloptool`.
 
-| What's broken | Use |
+| What you see | Use |
 |---|---|
-| A bad update | Nothing: U-Boot goes back to the previous slot by itself ([ota.md](ota.md#boot)) |
-| Linux (U-Boot still starts) | Release builds wait in fastboot by themselves; otherwise [1.1 Fastboot key](#11-fastboot-key) |
-| U-Boot proper | [1.2 Maskrom keys](#12-maskrom-keys) or [1.3 automatic maskrom](#13-automatic-maskrom) |
-| SPL / IDB (nothing on screen, keys don't reach maskrom) | [3. Hardware short](#3-hardware-short-last-resort) |
+| A new version doesn't start properly | Nothing: the D200 goes back to the previous version by itself |
+| The boot screen shows, but the keys never come up | Release builds wait in fastboot by themselves; otherwise [1.1 Fastboot key](#11-fastboot-key) |
+| No boot screen | [1.2 Maskrom keys](#12-maskrom-keys). If `rkdeveloptool ld` already shows "Maskrom", see [1.3](#13-automatic-maskrom) |
+| No boot screen, and the maskrom keys don't work | [3. Hardware short](#3-hardware-short-last-resort) |
 | You want the stock firmware back | [4. Restore the stock firmware](#4-restore-the-stock-firmware) |
 
 ## 1. Without a UART
 
 ### 1.1 Fastboot key
-From a debug build's shell (SSH or UART): `reboot-to fastboot`. Or hold the **top-left key** while the board boots:
+From a debug build's shell (SSH or UART): `reboot-to fastboot`. Or hold the **top-left key** while the D200 boots:
 it is labelled "Hold for Fastboot" for 1.5 s, and holding it switches the screen to a USB plug and "Fastboot". Then:
 ```bash
-fastboot devices          # shows the board's serial
+fastboot devices          # shows the D200's serial
 ./flash-fastboot.sh       # see flashing.md for the options
 ```
 
@@ -46,7 +46,7 @@ exist in debug builds; a release build only prints its boot log.
 | U-Boot prompt | Press a key during "Hit any key to stop autoboot" |
 | Fastboot | At the prompt: `fastboot usb 0` (Ctrl-C to stop) |
 | Maskrom from U-Boot | At the prompt: `maskrom` |
-| Maskrom from SPL | Hold or repeat **Ctrl-B** while powering on (SPL checks during its first 100 ms); works when U-Boot is broken |
+| Maskrom from SPL | Hold or repeat **Ctrl-B** while powering on; works when U-Boot is broken |
 
 Flashing over the UART alone (slow, for when USB is unusable): load each file with `loady <addr>`, then
 `mtd erase` / `mtd write` it to the partitions in [flashing.md](flashing.md#nand-layout). Write `idbloader-x4.img`
@@ -54,7 +54,7 @@ Flashing over the UART alone (slow, for when USB is unusable): load each file wi
 
 ## 3. Hardware short (last resort)
 
-For when SPL/IDB itself is broken, so neither the keys nor Ctrl-B work. The short stops the BootROM from reading the
+For when neither the keys nor Ctrl-B reach maskrom. The short stops the BootROM from reading the
 flash, so it falls back to maskrom.
 
 1. **Unplug the UART adapter.** It back-powers the SoC, and the short then doesn't work.
@@ -68,7 +68,7 @@ flash, so it falls back to maskrom.
 ## 4. Restore the stock firmware
 
 > [!NOTE]
-> This procedure is untested on a board that has run this firmware.
+> This procedure is untested on a D200 that has run this firmware.
 
 This needs your backup ([install.md](install.md#1-back-up-the-stock-firmware)) and a stock Rockchip loader: the one
 from [read-unlock/](read-unlock/README.md) if you built it, or build one from
