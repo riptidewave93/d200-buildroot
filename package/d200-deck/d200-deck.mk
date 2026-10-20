@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-D200_DECK_VERSION = 8cf67d955ffe679d64d83ce3f00cbb66a8b2ebd8
+D200_DECK_VERSION = 968adbac50ee45970ae3b8cf059a0dd72c442317
 D200_DECK_SITE = $(call github,riptidewave93,d200-deck,$(D200_DECK_VERSION))
 D200_DECK_LICENSE = GPL-3.0+, Apache-2.0 (icons), MIT (GitHub mark), BSD-3-Clause (Go modules)
 D200_DECK_LICENSE_FILES = LICENSE NOTICE.md

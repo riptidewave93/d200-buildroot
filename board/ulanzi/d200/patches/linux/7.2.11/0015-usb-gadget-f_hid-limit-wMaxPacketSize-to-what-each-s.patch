@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Mon, 19 Oct 2026 19:03:14 -0500
+Subject: [PATCH] usb: gadget: f_hid: limit wMaxPacketSize to what each speed
+ allows
+
+f_hid uses report_length as wMaxPacketSize at every speed. Interrupt
+endpoints allow at most 64 bytes per packet at full speed and 1024 at
+high and super speed, so a function with longer reports gets invalid
+descriptors, and a high-speed gadget with 1024-byte reports doesn't
+enumerate properly at full speed.
+
+Cap wMaxPacketSize, and wBytesPerInterval, at the speed's maximum. A
+report longer than that is sent in several packets, which the UDC
+already does for a request longer than maxpacket.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ drivers/usb/gadget/function/f_hid.c | 26 ++++++++++++++++----------
+ 1 file changed, 16 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/usb/gadget/function/f_hid.c b/drivers/usb/gadget/function/f_hid.c
+index 3c6b43d06..f9a613ef6 100644
+--- a/drivers/usb/gadget/function/f_hid.c
++++ b/drivers/usb/gadget/function/f_hid.c
+@@ -1149,6 +1149,7 @@ static int hidg_bind(struct usb_configuration *c, struct usb_function *f)
+ 	struct usb_ep		*ep;
+ 	struct f_hidg		*hidg = func_to_hidg(f);
+ 	struct usb_string	*us;
++	unsigned int		fs_maxp, hs_maxp;
+ 	int			status;
+ 
+ 	hidg->get_req = usb_ep_alloc_request(c->cdev->gadget->ep0, GFP_ATOMIC);
+@@ -1197,12 +1198,18 @@ static int hidg_bind(struct usb_configuration *c, struct usb_function *f)
+ 	hidg_interface_desc.bNumEndpoints = hidg->use_out_ep ? 2 : 1;
+ 	hidg->protocol = HID_REPORT_PROTOCOL;
+ 	hidg->idle = 1;
+-	hidg_ss_in_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
+-	hidg_ss_in_comp_desc.wBytesPerInterval =
+-				cpu_to_le16(hidg->report_length);
+-	hidg_hs_in_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
+-	hidg_fs_in_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
+-	hidg_ss_out_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
++	/*
++	 * Interrupt endpoints take at most 64 bytes per packet at full speed
++	 * and 1024 at high and super speed; a longer report takes several
++	 * packets.
++	 */
++	fs_maxp = min_t(unsigned int, hidg->report_length, 64);
++	hs_maxp = min_t(unsigned int, hidg->report_length, 1024);
++	hidg_ss_in_ep_desc.wMaxPacketSize = cpu_to_le16(hs_maxp);
++	hidg_ss_in_comp_desc.wBytesPerInterval = cpu_to_le16(hs_maxp);
++	hidg_hs_in_ep_desc.wMaxPacketSize = cpu_to_le16(hs_maxp);
++	hidg_fs_in_ep_desc.wMaxPacketSize = cpu_to_le16(fs_maxp);
++	hidg_ss_out_ep_desc.wMaxPacketSize = cpu_to_le16(hs_maxp);
+ 
+ 	/* IN endpoints: FS default=10ms, HS default=4µ-frame; user override if set */
+ 	if (!hidg->interval_user_set) {
+@@ -1215,10 +1222,9 @@ static int hidg_bind(struct usb_configuration *c, struct usb_function *f)
+ 		hidg_ss_in_ep_desc.bInterval = hidg->interval;
+ 	}
+ 
+-	hidg_ss_out_comp_desc.wBytesPerInterval =
+-				cpu_to_le16(hidg->report_length);
+-	hidg_hs_out_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
+-	hidg_fs_out_ep_desc.wMaxPacketSize = cpu_to_le16(hidg->report_length);
++	hidg_ss_out_comp_desc.wBytesPerInterval = cpu_to_le16(hs_maxp);
++	hidg_hs_out_ep_desc.wMaxPacketSize = cpu_to_le16(hs_maxp);
++	hidg_fs_out_ep_desc.wMaxPacketSize = cpu_to_le16(fs_maxp);
+ 	/*
+ 	 * We can use hidg_desc struct here but we should not relay
+ 	 * that its content won't change after returning from this function.

@@ -20,7 +20,8 @@ The kernel has slot A's line built in, for when U-Boot passes none.
 - Patches: `board/ulanzi/d200/patches/linux/7.2.11/`: RK3308 VOP support, a generic `rockchip,cmd-panel` panel
   driver, RK3308B-S TSADC support, the RK3308 VOP node, the RK3308B-S SoC dtsi (OPPs, TSADC) and the D200 device
   tree (the same DT files U-Boot uses, [u-boot.md](u-boot.md#patches)), a DWC2 fix so the gadget survives the
-  PC sleeping, and DWC2 remote wakeup so a key press can wake the PC.
+  PC sleeping, DWC2 remote wakeup so a key press can wake the PC, and valid HID endpoint descriptors at full speed for
+  reports over 64 bytes.
 - Config: `board/ulanzi/d200/linux.config`, started from `allnoconfig`. Everything is built in, no modules:
   - SoC: clocks, pinctrl, GPIO, UART, watchdog;
   - storage: SPI NAND, UBI, UBIFS (LZO only; the rootfs is built with LZO);
@@ -85,7 +86,7 @@ Functions are set in `/etc/default/usb-gadget`:
 | Function | PC sees | D200 side |
 |---|---|---|
 | `hid` | Keyboard, media keys, system control, mouse | `/dev/hidg0`. `deckd` provides the report descriptor and sends the reports; without it the function is skipped |
-| `raw` | A vendor HID device (usage page `0xFFD2`): the config channel for the website (WebHID) and the PC app | `/dev/hidg1`, served by `deckd` |
+| `raw` | A vendor HID device (usage page `0xFFD2`): the config channel for the website (WebHID) and the PC app. Input reports are as long as `deckd raw-report-length` says (1024 bytes, every 125 µs), output reports go over the control endpoint | `/dev/hidg1`, served by `deckd` |
 | `ncm` | USB Ethernet (built-in driver on Linux, macOS, Windows 10/11) | `usb0`, addresses below |
 | `msc` | Read-only USB drive "D200 DECK" with a README, including the D200's name and addresses | `/tmp/usb-drive.img`: a RAM copy of `/usr/share/d200/usb-drive.img` (built from `board/ulanzi/d200/usb-drive/`) with the README filled in at boot and when the addresses change |
 
@@ -93,7 +94,10 @@ The order is the interface order, and it is fixed: always-on functions first, th
 renumbers nothing. `bcdDevice` is the USB layout version: it changes when the always-on interfaces or the OS
 descriptors change, not with the drive setting. Microsoft OS descriptors (vendor code `0xcd`) give NCM the `WINNCM`
 compatible ID, so Windows binds its NCM driver without an INF; keep them. The functions use 5 of the controller's 6
-IN endpoints ([hardware.md](hardware.md#usb)); HID input reports stay at 64 bytes or less.
+IN endpoints ([hardware.md](hardware.md#usb)). Each IN endpoint gets the smallest free TX FIFO its packets fit: the
+config channel's 1024-byte packets need the one 1 KiB FIFO, NCM and the drive the two 512-byte ones, so no other
+function may have IN packets over 64 bytes. At full speed, packets are at most 64 bytes and a longer report takes
+several.
 
 **Settings** are `KEY=value` lines in `/data/usb-gadget.conf`. A missing or invalid value means the default:
 

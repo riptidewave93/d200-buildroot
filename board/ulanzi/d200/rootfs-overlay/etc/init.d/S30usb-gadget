@@ -75,7 +75,11 @@ add_function() {
 		fi
 		echo 0 > $f/subclass
 		echo 0 > $f/protocol
-		echo 64 > $f/report_length	# input reports
+		# input report length (an older deckd: 64), one per microframe
+		len=$(/usr/bin/deckd raw-report-length 2>/dev/null)
+		case "$len" in ''|*[!0-9]*) len=64 ;; esac
+		echo $len > $f/report_length
+		echo 1 > $f/interval
 		cat /tmp/raw-report-desc > $f/report_desc
 		rm -f /tmp/raw-report-desc
 		echo 1 > $f/no_out_endpoint	# output reports by SET_REPORT, as for hid
@@ -203,7 +207,7 @@ start() {
 	mkdir $G && cd $G || { echo "FAIL"; return 1; }
 	echo 0x1d6b > idVendor		# Linux Foundation
 	echo 0x0104 > idProduct		# Multifunction Composite Gadget
-	echo 0x0102 > bcdDevice		# USB descriptor layout version
+	echo 0x0103 > bcdDevice		# USB descriptor layout version
 	echo 0x0200 > bcdUSB
 	# composite device with interface association descriptors
 	echo 0xef > bDeviceClass
