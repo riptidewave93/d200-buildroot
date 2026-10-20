@@ -5,7 +5,8 @@
 # it hangs. Logs go to syslog.
 #
 
-PIDFILE=/var/run/deckd.pid
+DAEMON="deckd"
+PIDFILE="/var/run/$DAEMON.pid"
 # deckd rewrites it at least every 10 s with new content (a heartbeat)
 ALIVE=/run/deckd.alive
 HUNG=60
@@ -58,8 +59,11 @@ supervise() {
 
 start() {
 	printf "Starting deckd: "
-	start-stop-daemon -S -q -b -m -p $PIDFILE -x /bin/sh -- "$0" supervise
-	[ $? = 0 ] && echo "OK" || echo "FAIL"
+	if start-stop-daemon -S -q -b -m -p "$PIDFILE" -x /bin/sh -- "$0" supervise; then
+		echo "OK"
+	else
+		echo "FAIL"
+	fi
 }
 
 stop() {
