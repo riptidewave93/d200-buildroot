@@ -11,10 +11,10 @@ On a Linux PC, install:
 
 Your user needs access to the USB devices (the udev rules these packages ship), or run the tools with `sudo`.
 
-Get the images: the `.zip` from a [release](https://github.com/riptidewave93/d200-buildroot/releases), unpacked.
-Take the `release` flavour unless you want SSH and a root shell on the D200 (`debug`, see
-[flavours](../README.md#building)). Your own build works too: `make build`, then `output/<date>-<flavour>/`. The
-other docs call either folder the *image folder*.
+Get the images: `d200-<version>-release.zip` from the
+[latest release](https://github.com/riptidewave93/d200-buildroot/releases/latest), unpacked. Take the `release`
+flavour unless you want SSH and a root shell on the D200 (`debug`, see [flavours](../README.md#building)). Your own
+build works too: `make build`, then `output/<date>-<flavour>/`. The other docs call either folder the *image folder*.
 
 ## 1. Back up the stock firmware
 
@@ -29,9 +29,9 @@ sha256sum d200-factory.img > d200-factory.img.sha256
 ```
 Keep both files somewhere safe. To restore them, see [recovery.md](recovery.md#4-restore-the-stock-firmware).
 
-**No `adb`?** Back up from maskrom (step 2) with a patched Rockchip loader. To prevent possible license issues, you
-need to build it yourself: see [read-unlock/](read-unlock/README.md). Don't back up with `rk3308_loader_wo_ftl.bin`
-or any other stock loader: past 32 MiB they return filler without an error.
+**No `adb`?** Back up from maskrom (step 2) with a patched Rockchip loader. It's Rockchip's binary, so it isn't
+shipped here: build it yourself with [read-unlock/](read-unlock/README.md). Don't back up with
+`rk3308_loader_wo_ftl.bin` or any other stock loader: past 32 MiB they return filler without an error.
 
 ## 2. Enter maskrom
 

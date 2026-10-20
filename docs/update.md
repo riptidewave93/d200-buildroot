@@ -12,7 +12,8 @@ Coming from the stock firmware? See [install.md](install.md) instead.
 
 ## 1. Update page
 
-You need the update file, `d200-<version>-<flavour>-update.tar`, from a release or a build's `output/` folder.
+You need the update file, `d200-<version>-<flavour>-update.tar`, from the
+[latest release](https://github.com/riptidewave93/d200-buildroot/releases/latest) or a build's `output/` folder.
 
 > [!WARNING]
 > **Do <ins>not</ins> unplug the D200 or let your PC shut down or sleep until the update page says the update is

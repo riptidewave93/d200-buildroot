@@ -6,7 +6,7 @@ Getting a D200 working again, easiest first. Most ways end with `./flash-fastboo
 | What you see | Use |
 |---|---|
 | A new version doesn't start properly | Nothing: the D200 goes back to the previous version by itself |
-| The boot screen shows, but the keys never come up | Release builds wait in fastboot by themselves; otherwise [1.1 Fastboot key](#11-fastboot-key) |
+| The boot screen shows, but the keys never come up | [1.1 Fastboot key](#11-fastboot-key). If Linux doesn't start at all, a release build is already waiting in fastboot |
 | No boot screen | [1.2 Maskrom keys](#12-maskrom-keys). If `rkdeveloptool ld` already shows "Maskrom", see [1.3](#13-automatic-maskrom) |
 | No boot screen, and the maskrom keys don't work | [3. Hardware short](#3-hardware-short-last-resort) |
 | You want the stock firmware back | [4. Restore the stock firmware](#4-restore-the-stock-firmware) |

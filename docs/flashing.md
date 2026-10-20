@@ -60,8 +60,8 @@ What a build puts in `output/<date>-<flavour>/`:
 | `d200-<version>-<flavour>-maskrom.tar.xz` | `d200-full.img` and `rk3308_loader_wo_ftl.bin`, for releases |
 | `SHA256SUMS` | Checksums of the above |
 
-`<version>` is this repo's `git describe`; a release (tag `vX.Y.Z`) attaches the `.zip`, `-maskrom.tar.xz` and
-`-update.tar` of both flavours.
+`<version>` is this repo's `git describe`: `vX.Y.Z` for a release. A release attaches the `.zip`, `-maskrom.tar.xz`
+and `-update.tar` of both flavours, and their `SHA256SUMS`.
 
 ## Fastboot reference
 

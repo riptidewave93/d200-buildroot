@@ -4,17 +4,19 @@ Open-source replacement firmware for the **Ulanzi D200** stream controller.
 
 ## What you get
 
-- **14 keys with pages of buttons:** media keys, key combos, macros, icons and animated GIFs.
-- **Setup in the browser:** the [configuration website](https://riptidewave93.github.io/d200-configure/) edits
-  your keys over USB. Nothing to install.
-- **PC actions** with [deckhost](https://github.com/riptidewave93/d200-deck/blob/main/docs/deckhost.md), the PC
-  helper for Linux and Windows: open URLs, launch apps, control OBS, Discord and media players.
+- **The D200 key app** from [d200-deck](https://github.com/riptidewave93/d200-deck), set up in the browser on the
+  [configuration website](https://riptidewave93.github.io/d200-configure/), with PC actions through
+  [deckhost](https://github.com/riptidewave93/d200-deck/blob/main/docs/deckhost.md). Their READMEs say what the keys
+  can do.
+- **One USB-C cable, no drivers:** the PC sees the keys as a keyboard and media keys, a USB network link to the D200,
+  and a small read-only drive that lists the D200's name and addresses.
 - **Updates from a web page** on the D200, confirmed on its keys. If an update doesn't start properly, the D200 goes
   back to the previous version by itself.
 - **Recovery keys:** hold a key at power-on to reflash it over USB, without opening it.
 
 ## Get it
 
+- [Download](https://github.com/riptidewave93/d200-buildroot/releases/latest) the latest release.
 - [Install](docs/install.md): back up the stock firmware, then flash. About 10 minutes, and you can always go back.
 - [Update](docs/update.md): a new version on a D200 that already runs this firmware.
 - [Recovery](docs/recovery.md): a D200 that doesn't start, or going back to the stock firmware.
