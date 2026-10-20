@@ -38,7 +38,8 @@ previous version by itself, and the page reports that the update was rolled back
 
 ## 2. Fastboot
 
-You need `fastboot` (Android platform tools) and a build's `output/<date>-<flavour>/` folder.
+You need `fastboot` (Android platform tools) and a release's `.zip` (unpacked) or a build's
+`output/<date>-<flavour>/` folder.
 
 1. Put the D200 in fastboot: hold the **top-left key** while plugging it in, until the screen shows a USB plug and
    "Fastboot". On a debug build, `reboot-to fastboot` over SSH does the same.
@@ -53,7 +54,8 @@ full reinstall instead: it also **resets the settings**. All options are in [fla
 
 ## 3. Maskrom
 
-You need `rkdeveloptool` and `fastboot`, and a build's `output/<date>-<flavour>/` folder.
+You need `rkdeveloptool` and `fastboot`, and a release's `.zip` (unpacked) or a build's `output/<date>-<flavour>/`
+folder.
 
 1. Hold the **top-left and bottom-left keys** while plugging the D200 in. The screen stays dark;
    `rkdeveloptool list` shows a "Maskrom" device.

@@ -30,7 +30,7 @@ A fresh install fills slot A; the first update creates and fills slot B. How upd
 
 ## Flashing
 
-From a build's `output/<date>-<flavour>/` folder, with the board in fastboot:
+From a release's `.zip` (unpacked) or a build's `output/<date>-<flavour>/` folder, with the board in fastboot:
 ```bash
 ./flash-fastboot.sh                    # full install: U-Boot + the whole UBI partition (ubi.img), then reboot
 ./flash-fastboot.sh --uboot            # only U-Boot: idbloader, u-boot, u-boot-backup (~2 s)

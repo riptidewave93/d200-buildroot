@@ -66,8 +66,12 @@ all:
 | `d200-full.img` | The whole install as one image, for `rkdeveloptool wl 0` ([install.md](docs/install.md#3-flash)) |
 | `rk3308_loader_wo_ftl.bin` | Rockchip's raw NAND loader (rkbin), which `rkdeveloptool` needs to write `d200-full.img` |
 | `d200-<version>-<flavour>-update.tar` | Update bundle for the update page ([update.md](docs/update.md), [ota.md](docs/ota.md#bundle)) |
+| `d200-<version>-<flavour>.zip` | The fastboot set (everything above `d200-full.img`, with its own `SHA256SUMS`), for releases |
+| `d200-<version>-<flavour>-maskrom.tar.xz` | `d200-full.img` and `rk3308_loader_wo_ftl.bin`, for releases |
 | `SHA256SUMS` | Checksums of the above |
-| `d200-<version>-<flavour>.tar.gz` | All of the above in one archive, for releases (`<version>` is this repo's `git describe`) |
+
+`<version>` is this repo's `git describe`; a release (tag `vX.Y.Z`) attaches the `.zip`, `-maskrom.tar.xz` and
+`-update.tar` of both flavours.
 
 Other targets:
 ```

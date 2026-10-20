@@ -1,7 +1,8 @@
 # Recovery
 
 How to get a D200 back to a working state, easiest first. Most methods end with flashing over USB-C with
-`flash-fastboot.sh` from a build's `output/<date>-<flavour>/` folder ([flashing.md](flashing.md)).
+`flash-fastboot.sh` from a release's `.zip` (unpacked) or a build's `output/<date>-<flavour>/` folder
+([flashing.md](flashing.md)).
 
 You need `fastboot` (Android platform tools) and, for maskrom, `rkdeveloptool`.
 

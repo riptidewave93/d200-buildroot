@@ -6,7 +6,9 @@ firmware isn't signed and nothing here burns efuses, so with the backup you can 
 You need, on a Linux PC:
 - `adb`, and `fastboot` unless you flash with `rkdeveloptool` only (Android platform tools);
 - [`rkdeveloptool`](https://github.com/rockchip-linux/rkdeveloptool);
-- the images from a build: `make build` in this repo, then use `output/<date>-<flavour>/`.
+- the images: from a [release](https://github.com/riptidewave93/d200-buildroot/releases) (the `.zip` for
+  fastboot, or the `-maskrom.tar.xz` for `rkdeveloptool` only, unpacked), or from a build (`make build` in this repo,
+  then `output/<date>-<flavour>/`).
 
 Your user needs access to the USB devices (udev rules from the platform tools / rkdeveloptool packages), or run the
 tools with `sudo`.
@@ -42,9 +44,9 @@ Check: `rkdeveloptool list` shows a `Maskrom` device.
 
 Either way replaces all stock data.
 
-**rkdeveloptool only** (one image, nothing else needed):
+**rkdeveloptool only** (one image, nothing else needed; from a release, the `-maskrom.tar.xz`):
 ```bash
-cd output/<date>-<flavour>
+cd d200-<version>-<flavour>-maskrom          # or output/<date>-<flavour>
 rkdeveloptool db rk3308_loader_wo_ftl.bin    # Rockchip's raw NAND loader
 rkdeveloptool ef                             # erase everything first: leftovers confuse UBI
 rkdeveloptool wl 0 d200-full.img
@@ -52,9 +54,10 @@ rkdeveloptool rd
 ```
 
 **Fastboot** (skips bad blocks, so it is the safer choice on a NAND that has some): run U-Boot from RAM while
-holding the **top-left key**, so it enters fastboot (the screen shows a USB plug and "Fastboot"), then flash:
+holding the **top-left key**, so it enters fastboot (the screen shows a USB plug and "Fastboot"), then flash (from a
+release, the `.zip`):
 ```bash
-cd output/<date>-<flavour>
+cd d200-<version>-<flavour>                  # or output/<date>-<flavour>
 rkdeveloptool boot d200-usb-loader.bin       # hold the top-left key
 ./flash-fastboot.sh
 ```

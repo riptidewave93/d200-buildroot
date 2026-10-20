@@ -57,7 +57,8 @@ jobs:
         with:
           name: d200-${{ matrix.flavor }}
           path: |
-            output/*/d200-*.tar.gz
+            output/*/d200-*.zip
+            output/*/d200-*-maskrom.tar.xz
             output/*/d200-*-update.tar
           if-no-files-found: error
 
