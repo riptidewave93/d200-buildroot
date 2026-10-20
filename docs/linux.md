@@ -20,8 +20,8 @@ The kernel has slot A's line built in, for when U-Boot passes none.
 - Patches: `board/ulanzi/d200/patches/linux/7.2.11/`: RK3308 VOP support, a generic `rockchip,cmd-panel` panel
   driver, RK3308B-S TSADC support, the RK3308 VOP node, the RK3308B-S SoC dtsi (OPPs, TSADC) and the D200 device
   tree (the same DT files U-Boot uses, [u-boot.md](u-boot.md#patches)), a DWC2 fix so the gadget survives the
-  PC sleeping, DWC2 remote wakeup so a key press can wake the PC, and valid HID endpoint descriptors at full speed for
-  reports over 64 bytes.
+  PC sleeping, DWC2 remote wakeup so a key press can wake the PC, valid HID endpoint descriptors at full speed for
+  reports over 64 bytes, and an HID OUT endpoint that keeps taking data when nobody reads it.
 - Config: `board/ulanzi/d200/linux.config`, started from `allnoconfig`. Everything is built in, no modules:
   - SoC: clocks, pinctrl, GPIO, UART, watchdog;
   - storage: SPI NAND, UBI, UBIFS (LZO only; the rootfs is built with LZO);
@@ -86,7 +86,7 @@ Functions are set in `/etc/default/usb-gadget`:
 | Function | PC sees | D200 side |
 |---|---|---|
 | `hid` | Keyboard, media keys, system control, mouse | `/dev/hidg0`. `deckd` provides the report descriptor and sends the reports; without it the function is skipped |
-| `raw` | A vendor HID device (usage page `0xFFD2`): the config channel for the website (WebHID) and the PC app. Input reports are as long as `deckd raw-report-length` says (1024 bytes, every 125 µs), output reports go over the control endpoint | `/dev/hidg1`, served by `deckd` |
+| `raw` | A vendor HID device (usage page `0xFFD2`): the config channel for the website (WebHID) and the PC app. Input and output reports of `deckd raw-report-length` bytes (1024), on interrupt endpoints polled every 125 µs | `/dev/hidg1`, served by `deckd` |
 | `ncm` | USB Ethernet (built-in driver on Linux, macOS, Windows 10/11) | `usb0`, addresses below |
 | `msc` | Read-only USB drive "D200 DECK" with a README, including the D200's name and addresses | `/tmp/usb-drive.img`: a RAM copy of `/usr/share/d200/usb-drive.img` (built from `board/ulanzi/d200/usb-drive/`) with the README filled in at boot and when the addresses change |
 
@@ -135,9 +135,12 @@ across boots.
 
 **Every OUT endpoint must always have a reader on the D200.** The controller has a single RX FIFO for all of them
 ([hardware.md](hardware.md#usb)), so data sent to a function nobody reads blocks it and stalls every function, USB
-Ethernet included. NCM and mass storage always read theirs, and both HID functions take output reports over the
-control endpoint instead of an OUT endpoint. For the same reason there is no USB serial port: a PC probing it for a
-modem would stall everything.
+Ethernet included (seen on the D200 with the config channel's OUT endpoint and `deckd` stopped). NCM and mass storage
+always read theirs. The keyboard HID takes its LED reports over the control endpoint instead of an OUT endpoint. The
+config channel has an OUT endpoint, since output reports over the control endpoint cost 1 ms per 64 bytes (the PC
+retries each NAKed packet a frame later); kernel patch 0016 keeps f_hid taking its data when `deckd` doesn't read,
+dropping the oldest unread report. For the same reason there is no USB serial port: a PC probing it for a modem would
+stall everything.
 
 ## Display and keys
 

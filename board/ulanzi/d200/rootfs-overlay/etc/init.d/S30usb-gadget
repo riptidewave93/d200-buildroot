@@ -82,7 +82,10 @@ add_function() {
 		echo 1 > $f/interval
 		cat /tmp/raw-report-desc > $f/report_desc
 		rm -f /tmp/raw-report-desc
-		echo 1 > $f/no_out_endpoint	# output reports by SET_REPORT, as for hid
+		# output reports on an interrupt OUT endpoint (1 ms per 64 bytes
+		# over the control endpoint); f_hid keeps it taking data even when
+		# deckd doesn't read, so it can't stall the others (see hid)
+		echo 0 > $f/no_out_endpoint
 		;;
 	ncm)
 		f=functions/ncm.usb0
@@ -207,7 +210,7 @@ start() {
 	mkdir $G && cd $G || { echo "FAIL"; return 1; }
 	echo 0x1d6b > idVendor		# Linux Foundation
 	echo 0x0104 > idProduct		# Multifunction Composite Gadget
-	echo 0x0103 > bcdDevice		# USB descriptor layout version
+	echo 0x0104 > bcdDevice		# USB descriptor layout version
 	echo 0x0200 > bcdUSB
 	# composite device with interface association descriptors
 	echo 0xef > bDeviceClass

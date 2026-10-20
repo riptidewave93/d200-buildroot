@@ -1,0 +1,137 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Mon, 19 Oct 2026 19:27:58 -0500
+Subject: [PATCH] usb: gadget: f_hid: keep the OUT endpoint taking data when
+ nobody reads
+
+f_hid queues its OUT requests again only when userspace reads them, so
+an interrupt OUT endpoint stops taking data once qlen reports are
+waiting. On controllers with one RX FIFO for all OUT endpoints, such as
+dwc2, an OUT endpoint that stops taking data can stall every other
+function of the gadget: with a reader stopped and a host writing to the
+HID function, a USB Ethernet function on the same gadget stopped
+passing traffic.
+
+Count the queued OUT requests, and when the last one completes while
+other reports are still unread, queue the oldest unread report's
+request again, dropping that report. A reader that keeps up sees no
+change; one that falls qlen reports behind loses the oldest.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ drivers/usb/gadget/function/f_hid.c | 56 ++++++++++++++++++++++++++---
+ 1 file changed, 52 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/usb/gadget/function/f_hid.c b/drivers/usb/gadget/function/f_hid.c
+index f9a613ef6..e9ae44df2 100644
+--- a/drivers/usb/gadget/function/f_hid.c
++++ b/drivers/usb/gadget/function/f_hid.c
+@@ -82,6 +82,7 @@ struct f_hidg {
+ 	/* recv report - interrupt out only (use_out_ep == 1) */
+ 	struct list_head		completed_out_req;
+ 	unsigned int			qlen;
++	unsigned int			out_queued;
+ 	/* recv report - setup set_report only (use_out_ep == 0) */
+ 	char				*set_report_buf;
+ 	unsigned int			set_report_length;
+@@ -301,6 +302,26 @@ static struct usb_gadget_strings *ct_func_strings[] = {
+ /*-------------------------------------------------------------------------*/
+ /*                              Char Device                                */
+ 
++/* Queue an OUT request, counting it in out_queued */
++static int hidg_queue_out_req(struct f_hidg *hidg, struct usb_request *req,
++			      gfp_t gfp_flags)
++{
++	unsigned long flags;
++	int ret;
++
++	spin_lock_irqsave(&hidg->read_spinlock, flags);
++	hidg->out_queued++;
++	spin_unlock_irqrestore(&hidg->read_spinlock, flags);
++
++	ret = usb_ep_queue(hidg->out_ep, req, gfp_flags);
++	if (ret) {
++		spin_lock_irqsave(&hidg->read_spinlock, flags);
++		hidg->out_queued--;
++		spin_unlock_irqrestore(&hidg->read_spinlock, flags);
++	}
++	return ret;
++}
++
+ static ssize_t f_hidg_intout_read(struct file *file, char __user *buffer,
+ 				  size_t count, loff_t *ptr)
+ {
+@@ -362,7 +383,7 @@ static ssize_t f_hidg_intout_read(struct file *file, char __user *buffer,
+ 		kfree(list);
+ 
+ 		req->length = hidg->report_length;
+-		ret = usb_ep_queue(hidg->out_ep, req, GFP_KERNEL);
++		ret = hidg_queue_out_req(hidg, req, GFP_KERNEL);
+ 		if (ret < 0) {
+ 			free_ep_req(hidg->out_ep, req);
+ 			return ret;
+@@ -771,9 +792,13 @@ static void hidg_intout_complete(struct usb_ep *ep, struct usb_request *req)
+ {
+ 	struct f_hidg *hidg = (struct f_hidg *) req->context;
+ 	struct usb_composite_dev *cdev = hidg->func.config->cdev;
+-	struct f_hidg_req_list *req_list;
++	struct f_hidg_req_list *req_list, *drop;
+ 	unsigned long flags;
+ 
++	spin_lock_irqsave(&hidg->read_spinlock, flags);
++	hidg->out_queued--;
++	spin_unlock_irqrestore(&hidg->read_spinlock, flags);
++
+ 	switch (req->status) {
+ 	case 0:
+ 		req_list = kzalloc_obj(*req_list, GFP_ATOMIC);
+@@ -786,8 +811,30 @@ static void hidg_intout_complete(struct usb_ep *ep, struct usb_request *req)
+ 
+ 		spin_lock_irqsave(&hidg->read_spinlock, flags);
+ 		list_add_tail(&req_list->list, &hidg->completed_out_req);
++		/*
++		 * Keep a request queued even when nobody reads: on controllers
++		 * with one RX FIFO for all OUT endpoints, an OUT endpoint that
++		 * stops taking data can stall every other function. The oldest
++		 * unread report makes way.
++		 */
++		drop = NULL;
++		if (!hidg->out_queued &&
++		    !list_is_singular(&hidg->completed_out_req)) {
++			drop = list_first_entry(&hidg->completed_out_req,
++						struct f_hidg_req_list, list);
++			list_del(&drop->list);
++		}
+ 		spin_unlock_irqrestore(&hidg->read_spinlock, flags);
+ 
++		if (drop) {
++			struct usb_request *drop_req = drop->req;
++
++			kfree(drop);
++			drop_req->length = hidg->report_length;
++			if (hidg_queue_out_req(hidg, drop_req, GFP_ATOMIC))
++				free_ep_req(ep, drop_req);
++		}
++
+ 		wake_up(&hidg->read_queue);
+ 		break;
+ 	default:
+@@ -1073,6 +1120,7 @@ static int hidg_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
+ 		/*
+ 		 * allocate a bunch of read buffers and queue them all at once.
+ 		 */
++		hidg->out_queued = 0;
+ 		for (i = 0; i < hidg->qlen && status == 0; i++) {
+ 			struct usb_request *req =
+ 					hidg_alloc_ep_req(hidg->out_ep,
+@@ -1080,8 +1128,8 @@ static int hidg_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
+ 			if (req) {
+ 				req->complete = hidg_intout_complete;
+ 				req->context  = hidg;
+-				status = usb_ep_queue(hidg->out_ep, req,
+-						      GFP_ATOMIC);
++				status = hidg_queue_out_req(hidg, req,
++							    GFP_ATOMIC);
+ 				if (status) {
+ 					ERROR(cdev, "%s queue req --> %d\n",
+ 						hidg->out_ep->name, status);
