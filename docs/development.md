@@ -1,7 +1,7 @@
 # Development
 
-Building is in the [README](../README.md#building). This page has the rest: make targets, versions and the repo
-layout.
+Building is in the [README](../README.md#building). This page has the rest: make targets, contributing and releases,
+versions and the repo layout.
 
 ## Builds
 
@@ -21,6 +21,23 @@ make shell           # shell in the builder container (Buildroot is in BuildEnv/
 make clean           # remove BuildEnv/ and output/
 make reset           # clean + remove the download cache (preserve/) and the builder image
 ```
+
+## Contributing and releases
+
+- Every change is a pull request, squash-merged. Its title becomes the commit on `main` and must be a
+  [conventional commit](https://www.conventionalcommits.org/), such as `feat(deck): …`, `fix(linux): …` or
+  `docs: …`; a check enforces it.
+- CI runs `make check` on every pull request and push to `main`, and a full release build on `main` and on pull
+  requests that change what goes into the image.
+- [Release Please](https://github.com/googleapis/release-please) keeps a release pull request open with the next
+  version and its changelog. Merging it tags `vX.Y.Z`; the same workflow then builds both flavours, signs the update
+  bundles and attaches them with `SHA256SUMS` to the release.
+- Versions: major for a change older pieces can't handle (a new minimum protocol, a config format break, a higher
+  `min_updater`), minor for a feature, patch for a fix.
+- The version on the D200 and in the file names is `git describe`: `vX.Y.Z` for a release, `vX.Y.Z-<n>-g<commit>`
+  for a build after it.
+- Renovate opens a pull request when d200-deck releases (`D200_DECK_VERSION`), and one a week for GitHub Actions.
+- Running the Release workflow by hand builds both flavours and keeps them as artifacts.
 
 ## Versions
 
