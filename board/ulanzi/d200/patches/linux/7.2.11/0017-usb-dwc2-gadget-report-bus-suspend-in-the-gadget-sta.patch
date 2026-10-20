@@ -95,10 +95,10 @@ index a123fb2c6..0e3fdcf63 100644
  			} else {
  				ret = dwc2_exit_hibernation(hsotg, 1, 0, 1);
 diff --git a/drivers/usb/dwc2/gadget.c b/drivers/usb/dwc2/gadget.c
-index 4584441e1..b78fc5551 100644
+index 5947a0997..24a708eaf 100644
 --- a/drivers/usb/dwc2/gadget.c
 +++ b/drivers/usb/dwc2/gadget.c
-@@ -4806,6 +4806,7 @@ static int dwc2_hsotg_wakeup(struct usb_gadget *gadget)
+@@ -4810,6 +4810,7 @@ static int dwc2_hsotg_wakeup(struct usb_gadget *gadget)
  	dwc2_clear_bit(hsotg, DCTL, DCTL_RMTWKUPSIG);
  	if (hsotg->lx_state == DWC2_L2) {
  		hsotg->lx_state = DWC2_L0;
@@ -106,7 +106,7 @@ index 4584441e1..b78fc5551 100644
  		call_gadget(hsotg, resume);
  	}
  	spin_unlock_irqrestore(&hsotg->lock, flags);
-@@ -5719,6 +5720,33 @@ int dwc2_gadget_exit_partial_power_down(struct dwc2_hsotg *hsotg,
+@@ -5723,6 +5724,33 @@ int dwc2_gadget_exit_partial_power_down(struct dwc2_hsotg *hsotg,
  	return ret;
  }
  
@@ -140,7 +140,7 @@ index 4584441e1..b78fc5551 100644
  /**
   * dwc2_gadget_enter_clock_gating() - Put controller in clock gating.
   *
-@@ -5785,6 +5813,7 @@ void dwc2_gadget_exit_clock_gating(struct dwc2_hsotg *hsotg, int rem_wakeup)
+@@ -5789,6 +5817,7 @@ void dwc2_gadget_exit_clock_gating(struct dwc2_hsotg *hsotg, int rem_wakeup)
  	}
  
  	/* Change to L0 state */
