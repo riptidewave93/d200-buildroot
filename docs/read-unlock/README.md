@@ -15,7 +15,7 @@ change; write and erase are untouched.
 ## Build the loader
 
 You need `python3` and a clone of [rkbin](https://github.com/rockchip-linux/rkbin) with
-`bin/rk33/rk3308_usbplug_v1.46.bin` (e.g. the commit in the [README](../../README.md#versions)). From the rkbin
+`bin/rk33/rk3308_usbplug_v1.46.bin` (e.g. the commit in [development.md](../development.md#versions)). From the rkbin
 directory, with `D200=/path/to/d200-buildroot`:
 ```bash
 python3 $D200/docs/read-unlock/patch_usbplug.py \
