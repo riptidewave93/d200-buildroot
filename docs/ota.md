@@ -61,6 +61,7 @@ An uncompressed ustar archive, `d200-<version>-<flavour>-update.tar`. Members, i
   "flavour": "release",
   "version": "1a2b3c4",
   "build_id": 202610191900,
+  "min_updater": 1,
   "images": [
     {"target": "idbloader", "file": "idbloader.img", "size": 262144, "sha256": "…"},
     {"target": "u-boot", "file": "u-boot.itb", "size": 1216512, "sha256": "…"},
@@ -71,6 +72,10 @@ An uncompressed ustar archive, `d200-<version>-<flavour>-update.tar`. Members, i
 ```
 
 - `build_id` is `BUILD_ID` from `/usr/lib/os-release` (UTC `YYYYMMDDHHMM`), the number to compare for "newer".
+- Optional fields ([Compatibility](#compatibility)):
+  - `min_updater` (default 1): the oldest updater version that can install the bundle;
+  - `min_updater_release`: the first release with that updater, named in the refusal message;
+  - `optional` on an image (default `false`): an updater that doesn't know its target checks it and skips it.
 - `idbloader.img` is one 256 KiB IDB copy:
   - bytes `0x0`–`0x7ff` are the header page;
   - bytes `0x20000`–`0x3ffff` are the code block (TPL + SPL);
@@ -104,7 +109,8 @@ Everything below is done by the updater, as root.
 1. Check the free space on `/data` against the upload size, then stream the tar into `/data/update/`, one file
    per member, hashing each file as it is written.
 2. Reject the bundle unless:
-   - `format` is 1 and `product` is `d200`;
+   - `format` is 1, `product` is `d200`, and `min_updater` is at most this updater's version;
+   - every image's target is known, or the image is optional (checked, then skipped);
    - every listed file is present with the right size and sha256, and there are no other files besides
      `manifest.sig`.
 3. A release device refuses `flavour: debug`.
@@ -163,6 +169,18 @@ what was already written; every step is compatible with the running system.
 
 **Report:** `ota_result`, the version of each slot, and per target what happened (written, skipped,
 retries, blocks marked bad, IDB copies left invalid).
+
+## Compatibility
+
+A device installs bundles from later releases with the updater it already has. Unknown manifest fields are ignored.
+When building a bundle:
+
+| Change | Do |
+|---|---|
+| A new image older devices can go without | Mark it `optional` |
+| Anything an older updater would get wrong: a new required target, a new write step, a field whose meaning changes, leaving out one of the four images | Raise `min_updater` to the new updater version (d200-deck's `ota.UpdaterVersion`, raised in the same release) and set `min_updater_release` |
+
+Both are set in `board/ulanzi/d200/post-image.sh`.
 
 ## Power cuts
 

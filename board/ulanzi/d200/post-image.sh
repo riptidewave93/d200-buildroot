@@ -73,19 +73,32 @@ if [ -f "$BINARIES_DIR/Image.gz" ]; then
 	cat "$BINARIES_DIR/ubi.img" >> "$FULL"
 
 	# Update bundle: manifest.json, then the images in write order
+	# (target:file, or target:file:optional). MIN_UPDATER and
+	# MIN_UPDATER_RELEASE: see docs/ota.md#compatibility
+	IMAGES="idbloader:idbloader.img u-boot:u-boot.itb kernel:kernel.itb rootfs:rootfs.ubifs"
+	MIN_UPDATER=1
+	MIN_UPDATER_RELEASE=
 	. "$TARGET_DIR/usr/lib/os-release"
 	MANIFEST="$BINARIES_DIR/manifest.json"
 	{
 		printf '{\n  "format": 1,\n  "product": "d200",\n'
 		printf '  "flavour": "%s",\n  "version": "%s",\n  "build_id": %s,\n' \
 			"$FLAVOR" "$VERSION" "$BUILD_ID"
+		printf '  "min_updater": %s,\n' "$MIN_UPDATER"
+		[ -z "$MIN_UPDATER_RELEASE" ] ||
+			printf '  "min_updater_release": "%s",\n' "$MIN_UPDATER_RELEASE"
 		printf '  "images": [\n'
 		sep=
-		for t in idbloader:idbloader.img u-boot:u-boot.itb kernel:kernel.itb rootfs:rootfs.ubifs; do
+		FILES=
+		for t in $IMAGES; do
+			target=${t%%:*}
 			f=${t#*:}
-			printf '%b    {"target": "%s", "file": "%s", "size": %s, "sha256": "%s"}' "$sep" \
-				"${t%%:*}" "$f" "$(stat -c%s "$BINARIES_DIR/$f")" \
-				"$(sha256sum "$BINARIES_DIR/$f" | cut -d' ' -f1)"
+			opt=
+			case "$f" in *:optional) f=${f%:optional}; opt=', "optional": true' ;; esac
+			FILES="$FILES $f"
+			printf '%b    {"target": "%s", "file": "%s", "size": %s, "sha256": "%s"%s}' "$sep" \
+				"$target" "$f" "$(stat -c%s "$BINARIES_DIR/$f")" \
+				"$(sha256sum "$BINARIES_DIR/$f" | cut -d' ' -f1)" "$opt"
 			sep=',\n'
 		done
 		printf '\n  ]\n}\n'
@@ -103,5 +116,5 @@ if [ -f "$BINARIES_DIR/Image.gz" ]; then
 		SIG=manifest.sig
 	fi
 	tar -C "$BINARIES_DIR" --owner=0 --group=0 --format=ustar -cf "$BINARIES_DIR/update.tar" \
-		manifest.json $SIG idbloader.img u-boot.itb kernel.itb rootfs.ubifs
+		manifest.json $SIG $FILES
 fi
