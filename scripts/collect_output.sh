@@ -5,6 +5,8 @@
 #   d200-<version>-<flavour>-maskrom.tar.xz  d200-full.img and the loader that
 #                                            rkdeveloptool needs (install.md)
 #   d200-<version>-<flavour>-update.tar      for the update page (ota.md)
+#   d200-<version>-release-rkdevtool.zip     update.img, the loader and a README,
+#                                            for RKDevTool on Windows (install.md)
 #   collect_output.sh [release|debug]
 set -e
 # shellcheck source=scripts/buildroot-env.sh
@@ -35,8 +37,19 @@ mkdir "${stage}/${bundle}"
 rm -rf "${stage}"
 tar -C "${out}" --transform "s,^,${bundle}-maskrom/," -cJf "${out}/${bundle}-maskrom.tar.xz" ${maskrom}
 cp "${images}/update.tar" "${out}/${bundle}-update.tar"
-(cd "${out}" && sha256sum "${bundle}.zip" "${bundle}-maskrom.tar.xz" "${bundle}-update.tar" >> SHA256SUMS)
-echo "Saved build files to ${out#${ourpath}/}/ (${bundle}.zip, ${bundle}-maskrom.tar.xz, ${bundle}-update.tar)"
+downloads="${bundle}.zip ${bundle}-maskrom.tar.xz ${bundle}-update.tar"
+if [ "${flavor}" = release ]; then
+    rkdevtool="${bundle}-rkdevtool"
+    stage=$(mktemp -d)
+    mkdir "${stage}/${rkdevtool}"
+    cp "${images}/update.img" "${images}/rk3308_loader_wo_ftl.bin" "${stage}/${rkdevtool}/"
+    cp "${ourpath}/board/ulanzi/d200/rkdevtool-README.txt" "${stage}/${rkdevtool}/README.txt"
+    (cd "${stage}" && zip -qrX "${out}/${rkdevtool}.zip" "${rkdevtool}")
+    rm -rf "${stage}"
+    downloads="${downloads} ${rkdevtool}.zip"
+fi
+(cd "${out}" && sha256sum ${downloads} >> SHA256SUMS)
+echo "Saved build files to ${out#${ourpath}/}/ (${downloads// /, })"
 
 if [ "${keep}" -gt 0 ]; then
     ls -d "${ourpath}"/output/2*-"${flavor}"/ | head -n -"${keep}" | xargs -r rm -rf
