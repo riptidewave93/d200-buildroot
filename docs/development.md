@@ -35,7 +35,8 @@ make reset           # clean + remove the download cache (preserve/) and the bui
 - To release, run the **Release** workflow on `main` (Actions → Release → Run workflow). It builds both flavours
   with the draft's version (or the one you give) and signs the update bundles, then tags `main`, attaches the files
   with `SHA256SUMS` to the draft and publishes it. If that last part fails, the tag is removed and the draft stays a
-  draft. **Dry run** only builds, and keeps the files as artifacts.
+  draft. **Dry run** builds, collects and checks the files (signed bundles, `SHA256SUMS`) and stops before the tag;
+  the files stay as artifacts.
 - Versions: major for a change older pieces can't handle (a new minimum protocol, a config format break, a higher
   `min_updater`), minor for a feature, patch for a fix.
 - The version on the D200 and in the file names is `git describe`: `vX.Y.Z` for a release, `vX.Y.Z-<n>-g<commit>`
