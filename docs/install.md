@@ -21,7 +21,12 @@ build works too: `make build`, then `output/<date>-<flavour>/`. The other docs c
 ## 1. Enter maskrom
 
 Pick one:
-- **adb:** `adb reboot loader`, then `rkdeveloptool rd 3`. Doesn't always work.
+- **adb** (easiest): with the D200 on the stock firmware and plugged in,
+  ```bash
+  adb shell 'sync; devmem 0xff000500 32 0xEF08A53C; devmem 0xff5000b8 32 0xfdb9'
+  ```
+  This tells the chip to start in maskrom and resets it, so adb disconnects. Nothing is written to the flash: unplug
+  it without flashing and it starts the stock firmware again.
 - **UART:** connect a 3.3 V UART ([recovery.md](recovery.md#2-with-a-uart)), then hold Ctrl-B while plugging in
   USB-C. The stock U-Boot enters maskrom.
 - **Short:** short R9602 (the pad nearest the SoC) to GND while plugging in USB-C
