@@ -1,32 +1,80 @@
 name: Release
 
-# Builds both flavours and signs their update bundles with the
-# D200_SIGNING_KEY secret (docs/ota.md#signing). Called by Release Please for
-# a new release, it attaches the files and their SHA-256 sums to that
-# release; run by hand, it only builds and keeps them as artifacts.
+# The Release button: run it from main to release main as it is. Release
+# Drafter updates the draft and gives its version (or the one given). Both
+# flavours are built with that version, their update bundles signed with the
+# D200_SIGNING_KEY secret (docs/ota.md#signing). Then main is tagged, the files
+# are attached with their SHA-256 sums to the draft, and it's published; if
+# that fails, the tag is removed and the draft stays a draft. A dry run builds
+# and checks the version only, and keeps the files as artifacts.
 on:
-  workflow_call:
-    inputs:
-      tag:
-        description: The release to attach the files to
-        type: string
-        required: true
   workflow_dispatch:
+    inputs:
+      version:
+        description: Version, e.g. 0.2.0 (empty for the draft's)
+        type: string
+        default: ''
+      dry_run:
+        description: Dry run (no tag, upload or release)
+        type: boolean
+        default: false
 
+permissions: {}
+
+# shared with Release Drafter, so the draft doesn't change mid-release
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
+  group: release
+  cancel-in-progress: false
 
 jobs:
+  draft:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Run the release from main." >&2
+          exit 1
+
+      - name: Update the draft
+        id: draft
+        uses: release-drafter/release-drafter@978bb0b30c5ee8cdd332ced253758157150d43f0 # v7.10.0
+        with:
+          version: ${{ inputs.version }}
+          commitish: ${{ github.sha }}
+          dry-run: ${{ inputs.dry_run }}
+
+      - name: Check the version
+        id: tag
+        env:
+          TAG: v${{ steps.draft.outputs.resolved_version }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Not a release version: '$TAG'" >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags "https://github.com/$GITHUB_REPOSITORY" "refs/tags/$TAG" >/dev/null; then
+            echo "$TAG already exists" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: draft
     strategy:
       matrix:
         flavor: [release, debug]
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.draft.outputs.tag }}
     steps:
       - name: Free disk space
         run: |
@@ -35,8 +83,11 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0  # the version comes from git describe, U-Boot's date from git log
+
+      - name: Tag it here, for git describe
+        run: git tag "$TAG"
 
       - name: Restore the download cache
         uses: actions/cache/restore@v6
@@ -59,6 +110,9 @@ jobs:
           path: preserve/dl
           key: dl-${{ matrix.flavor }}-${{ hashFiles('Makefile', 'configs/*', 'board/ulanzi/d200/*.fragment', 'package/*/*.mk') }}
 
+      - name: Check the files carry the release's version
+        run: test -e "$(echo output/*/d200-"$TAG"-${{ matrix.flavor }}-update.tar)"
+
       - uses: actions/upload-artifact@v7
         with:
           name: d200-${{ matrix.flavor }}
@@ -68,13 +122,20 @@ jobs:
             output/*/d200-*-update.tar
           if-no-files-found: error
 
-  release:
-    if: inputs.tag
-    needs: build
+  publish:
+    if: ${{ !inputs.dry_run }}
+    needs: [draft, build]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.draft.outputs.tag }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
       - uses: actions/download-artifact@v8
         with:
           path: dist
@@ -86,11 +147,28 @@ jobs:
             tar -tf "$f" | grep -qx manifest.sig || { echo "$f is not signed"; exit 1; }
           done
 
-      - name: Attach them to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag }}
+      - name: Checksums
+        run: cd dist && sha256sum -- d200-* > SHA256SUMS
+
+      - name: Push the tag
+        id: push
+        run: |
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            tag -a "$TAG" -m "$TAG"
+          git push origin "refs/tags/$TAG"
+
+      - name: Attach the files to the draft
+        # SHA256SUMS goes last: deckhost waits for it before telling users.
         run: |
           cd dist
-          sha256sum -- d200-* > SHA256SUMS
-          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" -- d200-* SHA256SUMS
+          gh release upload "$TAG" --clobber -- d200-*
+          gh release upload "$TAG" --clobber SHA256SUMS
+
+      - name: Publish it
+        id: publish
+        run: gh release edit "$TAG" --draft=false --latest
+
+      - name: Remove the tag of a failed release
+        if: failure() && steps.push.outcome == 'success' && steps.publish.outcome != 'success'
+        run: git push --delete origin "refs/tags/$TAG"

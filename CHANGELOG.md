@@ -1,5 +1,8 @@
 # Changelog
 
+This file is no longer updated: the notes for every release after 0.1.0 are on
+[GitHub Releases](https://github.com/riptidewave93/d200-buildroot/releases).
+
 ## 0.1.0 (2026-10-20)
 
 
