@@ -19,7 +19,7 @@ port.
 BootROM → IDB (rkbin DDR init + U-Boot SPL) → BL31 (rkbin) → U-Boot → Linux.
 
 The BootROM reads the IDB from SPI NAND at `0x0`, `0x40000`, `0x80000` or `0xc0000` (4 copies). If none is valid it
-enters **maskrom**: USB device `2207:330e`, driven by `rkdeveloptool`.
+enters **maskrom**: USB device `2207:330e`, which `d200-install.py` and RKDevTool talk to.
 
 ## CPU
 

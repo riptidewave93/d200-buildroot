@@ -4,7 +4,7 @@ Using a D200:
 
 | Doc | Read it for |
 |---|---|
-| [install.md](install.md) | Replacing the stock firmware: enter maskrom, flash |
+| [install.md](install.md) | Replacing the stock firmware: enter maskrom (USB flashing mode), flash |
 | [update.md](update.md) | Installing a new version: from the update page or over fastboot |
 | [recovery.md](recovery.md) | A D200 that doesn't start; going back to the stock firmware |
 

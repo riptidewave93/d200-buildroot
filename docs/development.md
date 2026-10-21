@@ -69,6 +69,7 @@ board/ulanzi/d200/
   idb-layout.py                    lays out idbloader.img
   logo/                            boot and fastboot screens (BMPs) and their generator
   flash-fastboot.sh                host flashing script (copied next to the images)
+  d200-install.py                  installs d200-full.img from maskrom (also copied next to the images)
   post-build.sh, post-image.sh     build the USB drive, USB loader, kernel.itb, ubi.img and update bundle
 package/d200-rkbin/                rkbin at a selectable commit
 package/d200-utils/                reboot-to
