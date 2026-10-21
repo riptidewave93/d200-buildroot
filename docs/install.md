@@ -11,6 +11,9 @@ On a Linux PC, install:
 
 Your user needs access to the USB devices (the udev rules these packages ship), or run the tools with `sudo`.
 
+On Windows, you need `adb` for the backup and Rockchip's RKDevTool to flash: see
+[Windows: RKDevTool](#windows-rkdevtool).
+
 Get the images: `d200-<version>-release.zip` from the
 [latest release](https://github.com/riptidewave93/d200-buildroot/releases/latest), unpacked. Take the `release`
 flavour unless you want SSH and a root shell on the D200 (`debug`, see [flavours](../README.md#building)). Your own
@@ -27,6 +30,7 @@ adb devices                                  # the D200 should be listed
 adb pull /dev/rkflash0 d200-factory.img      # 241172480 bytes
 sha256sum d200-factory.img > d200-factory.img.sha256
 ```
+On Windows, `certutil -hashfile d200-factory.img SHA256` shows the checksum; save it next to the image.
 Keep both files somewhere safe. To restore them, see [recovery.md](recovery.md#4-restore-the-stock-firmware).
 
 **No `adb`?** Back up from maskrom (step 2) with a patched Rockchip loader. It's Rockchip's binary, so it isn't
@@ -42,7 +46,7 @@ Pick one:
 - **Short:** short R9602 (the pad nearest the SoC) to GND while plugging in USB-C
   ([recovery.md](recovery.md#3-hardware-short-last-resort)).
 
-Check: `rkdeveloptool ld` shows a `Maskrom` device.
+Check: `rkdeveloptool ld` shows a `Maskrom` device (RKDevTool: "Found One MASKROM Device").
 
 ## 3. Flash
 
@@ -64,6 +68,28 @@ rkdeveloptool wl 0 d200-full.img
 rkdeveloptool rd
 ```
 Prefer fastboot: it skips bad NAND blocks, and this way may not.
+
+### Windows: RKDevTool
+
+This erases everything on the D200 and installs the release flavour. You need:
+- `d200-<version>-release-rkdevtool.zip` from the
+  [latest release](https://github.com/riptidewave93/d200-buildroot/releases/latest), unpacked;
+- Rockchip's driver,
+  [DriverAssitant v5.14](https://github.com/industrialtablet/RockChip-Development-Tools/blob/main/RockChip%20Development%20Tools/DriverAssitant_v5.14.zip),
+  and flashing tool,
+  [RKDevTool v3.37](https://github.com/industrialtablet/RockChip-Development-Tools/blob/main/RockChip%20Development%20Tools/RKDevTool_v3.37_for_window.zip),
+  unpacked.
+
+1. Install the driver: `DriverInstall.exe` in the DriverAssitant folder, **Install Driver**.
+2. RKDevTool starts in Chinese. For English, set `Selected=2` under `[Language]` in its `config.ini`.
+3. With the D200 in maskrom (step 2), start `RKDevTool.exe`. It must show "Found One MASKROM Device", not "LOADER".
+4. **Advanced Function** tab: pick `rk3308_loader_wo_ftl.bin` next to **Boot**, press **Download** and wait for
+   "Found One LOADER Device".
+5. Press **EraseAll** and wait for it to finish.
+6. **Upgrade Firmware** tab: **Firmware**, pick `update.img`, then **Upgrade**. When the log shows "Download Firmware
+   Success", the D200 restarts into the new firmware.
+
+If the D200 doesn't start afterwards, use fastboot: [recovery.md](recovery.md).
 
 ## Next steps
 

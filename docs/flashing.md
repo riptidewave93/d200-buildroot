@@ -58,10 +58,11 @@ What a build puts in `output/<date>-<flavour>/`:
 | `d200-<version>-<flavour>-update.tar` | Update bundle for the update page ([update.md](update.md)) |
 | `d200-<version>-<flavour>.zip` | The fastboot set (everything above `d200-full.img`, with its own `SHA256SUMS`), for releases |
 | `d200-<version>-<flavour>-maskrom.tar.xz` | `d200-full.img` and `rk3308_loader_wo_ftl.bin`, for releases |
+| `d200-<version>-release-rkdevtool.zip` | The whole install for [RKDevTool](install.md#windows-rkdevtool) on Windows, release flavour only |
 | `SHA256SUMS` | Checksums of the above |
 
 `<version>` is this repo's `git describe`: `vX.Y.Z` for a release. A release attaches the `.zip`, `-maskrom.tar.xz`
-and `-update.tar` of both flavours, and their `SHA256SUMS`.
+and `-update.tar` of both flavours, the release flavour's `-rkdevtool.zip`, and their `SHA256SUMS`.
 
 ## Fastboot reference
 
