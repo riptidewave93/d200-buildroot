@@ -64,8 +64,6 @@ release, is the *image folder*.
 | `kernel.itb` | Kernel and device tree, for `kernel_a` / `kernel_b` |
 | `rootfs.ubifs` | Root filesystem, for `rootfs_a` / `rootfs_b` |
 | `ubi.img` | The whole `ubi` partition (env, slot A, empty `/data`), for a full install |
-| `d200-usb-loader.bin` | Runs U-Boot from RAM over USB, from maskrom (a Rockchip loader file) |
-| `u-boot-rockchip-usb471.bin`, `-usb472.bin` | The two stages packed into `d200-usb-loader.bin` |
 | `d200-full.img` | The whole install as one image, for `d200-install.py` ([From maskrom](#from-maskrom)) |
 | `rk3308_loader_wo_ftl.bin` | Rockchip's raw NAND loader (rkbin), which `d200-install.py` and RKDevTool load to write the flash |
 | `d200-install.py` | Writes `d200-full.img` from maskrom ([From maskrom](#from-maskrom)) |

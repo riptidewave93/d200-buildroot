@@ -1,10 +1,9 @@
 #!/bin/sh
-# Collect the D200 boot images and build a USB loader for rkdeveloptool.
+# Collect the D200 boot images and build the install and update images.
 #   idbloader.img   one 256 KiB IDB copy (TPL+SPL) (idb-layout.py)
 #   idbloader-x4.img  the "idbloader" partition: 4 copies, at 0x0/0x40000/
 #                   0x80000/0xc0000 (the BootROM tries each)
 #   u-boot.itb      U-Boot FIT, written to "u-boot" (0x100000) and "u-boot-backup" (0x500000)
-#   d200-usb-loader.bin   for `rkdeveloptool boot` from maskrom (runs U-Boot from RAM)
 #   kernel.itb      kernel FIT image (Image.gz + DTB) for a "kernel_a/b" UBI volume
 #   rootfs.ubifs    root filesystem for a "rootfs_a/b" UBI volume (built by Buildroot)
 #   ubi.img         the whole "ubi" partition, slot A filled (ubinize.cfg)
@@ -28,33 +27,6 @@ head -c 1M /dev/zero | tr '\0' '\377' > "$X4"	# erased flash is 0xff
 for i in 0 1 2 3; do
 	dd if="$BINARIES_DIR/idbloader.img" of="$X4" bs=256K seek=$i conv=notrunc status=none
 done
-
-INI="$BINARIES_DIR/d200-usb-loader.ini"
-cat > "$INI" <<INI
-[CHIP_NAME]
-NAME=RK3308
-[VERSION]
-MAJOR=1
-MINOR=0
-[CODE471_OPTION]
-NUM=1
-Path1=$BINARIES_DIR/u-boot-rockchip-usb471.bin
-Sleep=1
-[CODE472_OPTION]
-NUM=1
-Path1=$BINARIES_DIR/u-boot-rockchip-usb472.bin
-[LOADER_OPTION]
-NUM=2
-LOADER1=FlashData
-LOADER2=FlashBoot
-FlashData=$BINARIES_DIR/u-boot-rockchip-usb471.bin
-FlashBoot=$BINARIES_DIR/u-boot-rockchip-usb472.bin
-[OUTPUT]
-PATH=$BINARIES_DIR/d200-usb-loader.bin
-INI
-
-"$HOST_DIR/bin/boot_merger" "$INI"
-rm -f "$INI"
 
 install -m 0755 "$(dirname "$0")/flash-fastboot.sh" "$(dirname "$0")/d200-install.py" "$BINARIES_DIR/"
 
