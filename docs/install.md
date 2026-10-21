@@ -23,7 +23,7 @@ build works too: `make build`, then `output/<date>-<flavour>/`. The other docs c
 Pick one:
 - **adb** (easiest): with the D200 on the stock firmware and plugged in,
   ```bash
-  adb shell 'sync; devmem 0xff000500 32 0xEF08A53C; devmem 0xff5000b8 32 0xfdb9'
+  adb shell "sync; devmem 0xff000500 32 0xEF08A53C; devmem 0xff5000b8 32 0xfdb9"
   ```
   This tells the chip to start in maskrom and resets it, so adb disconnects. Nothing is written to the flash: unplug
   it without flashing and it starts the stock firmware again.
