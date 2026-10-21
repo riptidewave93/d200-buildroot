@@ -5,8 +5,8 @@ name: Release
 # flavours are built with that version, their update bundles signed with the
 # D200_SIGNING_KEY secret (docs/ota.md#signing). Then main is tagged, the files
 # are attached with their SHA-256 sums to the draft, and it's published; if
-# that fails, the tag is removed and the draft stays a draft. A dry run builds
-# and checks the version only, and keeps the files as artifacts.
+# that fails, the tag is removed and the draft stays a draft. A dry run builds,
+# collects and checks the files, and stops before the tag.
 on:
   workflow_dispatch:
     inputs:
@@ -122,8 +122,9 @@ jobs:
             output/*/d200-*-update.tar
           if-no-files-found: error
 
+  # On a dry run this only collects and checks the files: no tag, upload or
+  # release.
   publish:
-    if: ${{ !inputs.dry_run }}
     needs: [draft, build]
     runs-on: ubuntu-24.04
     permissions:
@@ -141,17 +142,34 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # each build's files arrive in its output/<date>-<flavour>/ folder
+      - name: Collect the files
+        run: |
+          find dist -mindepth 2 -type f -exec mv -n -t dist -- {} +
+          find dist -mindepth 1 -type d -empty -delete
+          ls -l dist
+          for flavor in release debug; do
+            for f in "d200-$TAG-$flavor.zip" "d200-$TAG-$flavor-maskrom.tar.xz" "d200-$TAG-$flavor-update.tar"; do
+              test -f "dist/$f" || { echo "missing $f" >&2; exit 1; }
+            done
+          done
+          test "$(find dist -mindepth 1 | wc -l)" -eq 6 || { echo "unexpected files in dist" >&2; exit 1; }
+
       - name: Check the update bundles are signed
         run: |
           for f in dist/*-update.tar; do
-            tar -tf "$f" | grep -qx manifest.sig || { echo "$f is not signed"; exit 1; }
+            tar -tf "$f" | grep -qx manifest.sig || { echo "$f is not signed" >&2; exit 1; }
           done
 
       - name: Checksums
-        run: cd dist && sha256sum -- d200-* > SHA256SUMS
+        run: |
+          cd dist
+          sha256sum -- d200-* > SHA256SUMS
+          cat SHA256SUMS
 
       - name: Push the tag
         id: push
+        if: ${{ !inputs.dry_run }}
         run: |
           git -c user.name='github-actions[bot]' \
             -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
@@ -159,6 +177,7 @@ jobs:
           git push origin "refs/tags/$TAG"
 
       - name: Attach the files to the draft
+        if: ${{ !inputs.dry_run }}
         # SHA256SUMS goes last: deckhost waits for it before telling users.
         run: |
           cd dist
@@ -167,6 +186,7 @@ jobs:
 
       - name: Publish it
         id: publish
+        if: ${{ !inputs.dry_run }}
         run: gh release edit "$TAG" --draft=false --latest
 
       - name: Remove the tag of a failed release
