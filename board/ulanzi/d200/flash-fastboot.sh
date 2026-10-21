@@ -57,6 +57,10 @@ fb() {
 getvar() {
 	fastboot getvar "$1" 2>&1 | sed -n "s/^$1: //p"
 }
+# size of a file in bytes (wc -c, as macOS has no GNU stat)
+file_size() {
+	echo $(($(wc -c <"$1")))
+}
 # size of a partition or UBI volume in bytes, empty if it doesn't exist
 part_size() {
 	getvar "partition-size:$1"
@@ -79,7 +83,7 @@ echo "D200 serial: $(getvar serialno)"
 # no sparse images: everything must fit the download buffer
 max=$(getvar max-download-size)
 for f in $FILES; do
-	[ "$(stat -c%s "$DIR/$f")" -le $((max)) ] ||
+	[ "$(file_size "$DIR/$f")" -le $((max)) ] ||
 		{ echo "$f is larger than the $((max)) byte download buffer" >&2; exit 1; }
 done
 
@@ -106,7 +110,7 @@ if [ -n "$SPLASH" ]; then
 	# recreate the volume at the image size, so any size fits
 	fb oem run:ubi part ubi
 	[ -n "$(part_size splash)" ] && fb oem run:ubi remove splash
-	fb oem run:ubi create splash "$(printf 0x%x "$(stat -c%s "$SPLASH")")" static 7
+	fb oem run:ubi create splash "$(printf 0x%x "$(file_size "$SPLASH")")" static 7
 	fb flash splash "$SPLASH"
 fi
 
