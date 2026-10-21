@@ -53,7 +53,7 @@ What a build puts in `output/<date>-<flavour>/`:
 | `ubi.img` | The whole `ubi` partition (env, slot A, empty `/data`), for a full install |
 | `d200-usb-loader.bin` | Runs U-Boot from RAM over USB, from maskrom: `rkdeveloptool db d200-usb-loader.bin` |
 | `u-boot-rockchip-usb471.bin`, `-usb472.bin` | The two stages packed into `d200-usb-loader.bin` |
-| `d200-full.img` | The whole install as one image, for `rkdeveloptool wl 0` ([install.md](install.md#3-flash)) |
+| `d200-full.img` | The whole install as one image, for `rkdeveloptool wl 0` ([install.md](install.md#2-flash)) |
 | `rk3308_loader_wo_ftl.bin` | Rockchip's raw NAND loader (rkbin), which `rkdeveloptool` needs to write `d200-full.img` |
 | `d200-<version>-<flavour>-update.tar` | Update bundle for the update page ([update.md](update.md)) |
 | `d200-<version>-<flavour>.zip` | The fastboot set (everything above `d200-full.img`, with its own `SHA256SUMS`), for releases |

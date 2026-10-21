@@ -1,7 +1,7 @@
 # Installing
 
-Replacing the stock firmware takes three steps: back it up, enter maskrom, flash. Allow about 10 minutes. The stock
-firmware isn't signed and nothing here burns efuses, so with the backup you can always go back.
+Replacing the stock firmware takes two steps: enter maskrom, then flash. Allow about 10 minutes. The stock firmware
+isn't signed and nothing here burns efuses, so you can always [go back](recovery.md#4-back-to-stock).
 
 ## Before you start
 
@@ -11,33 +11,14 @@ On a Linux PC, install:
 
 Your user needs access to the USB devices (the udev rules these packages ship), or run the tools with `sudo`.
 
-On Windows, you need `adb` for the backup and Rockchip's RKDevTool to flash: see
-[Windows: RKDevTool](#windows-rkdevtool).
+On Windows, flash with Rockchip's RKDevTool instead: see [Windows: RKDevTool](#windows-rkdevtool).
 
 Get the images: `d200-<version>-release.zip` from the
 [latest release](https://github.com/riptidewave93/d200-buildroot/releases/latest), unpacked. Take the `release`
 flavour unless you want SSH and a root shell on the D200 (`debug`, see [flavours](../README.md#building)). Your own
 build works too: `make build`, then `output/<date>-<flavour>/`. The other docs call either folder the *image folder*.
 
-## 1. Back up the stock firmware
-
-**Do this first.** The backup is the only way back to the stock firmware, and it only fits your unit (it holds its
-serial number and settings).
-
-Plug the D200 in and let it boot. The stock firmware gives you root `adb` over USB-C:
-```bash
-adb devices                                  # the D200 should be listed
-adb pull /dev/rkflash0 d200-factory.img      # 241172480 bytes
-sha256sum d200-factory.img > d200-factory.img.sha256
-```
-On Windows, `certutil -hashfile d200-factory.img SHA256` shows the checksum; save it next to the image.
-Keep both files somewhere safe. To restore them, see [recovery.md](recovery.md#4-restore-the-stock-firmware).
-
-**No `adb`?** Back up from maskrom (step 2) with a patched Rockchip loader. It's Rockchip's binary, so it isn't
-shipped here: build it yourself with [read-unlock/](read-unlock/README.md). Don't back up with
-`rk3308_loader_wo_ftl.bin` or any other stock loader: past 32 MiB they return filler without an error.
-
-## 2. Enter maskrom
+## 1. Enter maskrom
 
 Pick one:
 - **adb:** `adb reboot loader`, then `rkdeveloptool rd 3`. Doesn't always work.
@@ -48,7 +29,7 @@ Pick one:
 
 Check: `rkdeveloptool ld` shows a `Maskrom` device (RKDevTool: "Found One MASKROM Device").
 
-## 3. Flash
+## 2. Flash
 
 This replaces all stock data. From the image folder:
 1. Start U-Boot from RAM while holding the **top-left key**, until the screen shows a USB plug and "Fastboot":
@@ -82,7 +63,7 @@ This erases everything on the D200 and installs the release flavour. You need:
 
 1. Install the driver: `DriverInstall.exe` in the DriverAssitant folder, **Install Driver**.
 2. RKDevTool starts in Chinese. For English, set `Selected=2` under `[Language]` in its `config.ini`.
-3. With the D200 in maskrom (step 2), start `RKDevTool.exe`. It must show "Found One MASKROM Device", not "LOADER".
+3. With the D200 in maskrom (step 1), start `RKDevTool.exe`. It must show "Found One MASKROM Device", not "LOADER".
 4. **Advanced Function** tab: pick `rk3308_loader_wo_ftl.bin` next to **Boot**, press **Download** and wait for
    "Found One LOADER Device".
 5. Press **EraseAll** and wait for it to finish.

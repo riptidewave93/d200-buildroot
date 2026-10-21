@@ -17,7 +17,7 @@ Open-source replacement firmware for the **Ulanzi D200** stream controller.
 ## Get it
 
 - [Download](https://github.com/riptidewave93/d200-buildroot/releases/latest) the latest release.
-- [Install](docs/install.md): back up the stock firmware, then flash. About 10 minutes, and you can always go back.
+- [Install](docs/install.md): enter maskrom, then flash. About 10 minutes, and you can always go back.
 - [Update](docs/update.md): a new version on a D200 that already runs this firmware.
 - [Recovery](docs/recovery.md): a D200 that doesn't start, or going back to the stock firmware.
 

@@ -4,7 +4,7 @@ Using a D200:
 
 | Doc | Read it for |
 |---|---|
-| [install.md](install.md) | Replacing the stock firmware: back it up, enter maskrom, flash |
+| [install.md](install.md) | Replacing the stock firmware: enter maskrom, flash |
 | [update.md](update.md) | Installing a new version: from the update page or over fastboot |
 | [recovery.md](recovery.md) | A D200 that doesn't start; going back to the stock firmware |
 
@@ -18,7 +18,6 @@ Working on the firmware:
 | [u-boot.md](u-boot.md) | The U-Boot port, boot screens, and how to change the patches |
 | [linux.md](linux.md) | The kernel, root filesystem and USB functions |
 | [ota.md](ota.md) | A/B updates: slots, boot counter, the update bundle, signing |
-| [read-unlock/](read-unlock/README.md) | Building the patched loader for a full-flash backup without `adb` |
 | [todo.md](todo.md) | Open items |
 
 What the firmware does, building, and the other D200 repos: [README](../README.md).
