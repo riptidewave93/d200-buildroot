@@ -27,7 +27,7 @@ A fresh install fills slot A; the first update creates and fills slot B ([ota.md
 
 ## Flashing
 
-In the [image folder](install.md#before-you-start), with the D200 in fastboot:
+In the [image folder](#images), with the D200 in fastboot:
 ```bash
 ./flash-fastboot.sh                    # full install: U-Boot + the whole UBI partition (ubi.img), then reboot
 ./flash-fastboot.sh --uboot            # only U-Boot: idbloader, u-boot, u-boot-backup (~2 s)
@@ -38,9 +38,22 @@ In the [image folder](install.md#before-you-start), with the D200 in fastboot:
 A full install resets the U-Boot environment, `/data` (settings) and a custom splash. `--linux` keeps them, and
 makes the D200 boot slot A.
 
+## From maskrom
+
+A full reinstall from maskrom works as in [install.md](install.md#macos-and-linux) (RKDevTool on Windows). On our
+firmware, enter maskrom with `reboot-to maskrom` from a debug build's shell, or by holding the top-left and
+bottom-left keys while plugging in USB-C; the adb command there is only for the stock firmware.
+
+`d200-install.py` takes an image folder as its argument, for example your own build:
+```bash
+sudo d200-venv/bin/python board/ulanzi/d200/d200-install.py output/<date>-<flavour>/
+```
+It erases everything and doesn't skip bad NAND blocks; fastboot does.
+
 ## Images
 
-What a build puts in `output/<date>-<flavour>/`:
+What a build puts in `output/<date>-<flavour>/`. This folder, or an unpacked `d200-<version>-<flavour>.zip` from a
+release, is the *image folder*.
 
 | File | What |
 |---|---|
@@ -51,13 +64,14 @@ What a build puts in `output/<date>-<flavour>/`:
 | `kernel.itb` | Kernel and device tree, for `kernel_a` / `kernel_b` |
 | `rootfs.ubifs` | Root filesystem, for `rootfs_a` / `rootfs_b` |
 | `ubi.img` | The whole `ubi` partition (env, slot A, empty `/data`), for a full install |
-| `d200-usb-loader.bin` | Runs U-Boot from RAM over USB, from maskrom: `rkdeveloptool db d200-usb-loader.bin` |
+| `d200-usb-loader.bin` | Runs U-Boot from RAM over USB, from maskrom (a Rockchip loader file) |
 | `u-boot-rockchip-usb471.bin`, `-usb472.bin` | The two stages packed into `d200-usb-loader.bin` |
-| `d200-full.img` | The whole install as one image, for `rkdeveloptool wl 0` ([install.md](install.md#2-flash)) |
-| `rk3308_loader_wo_ftl.bin` | Rockchip's raw NAND loader (rkbin), which `rkdeveloptool` needs to write `d200-full.img` |
+| `d200-full.img` | The whole install as one image, for `d200-install.py` ([From maskrom](#from-maskrom)) |
+| `rk3308_loader_wo_ftl.bin` | Rockchip's raw NAND loader (rkbin), which `d200-install.py` and RKDevTool load to write the flash |
+| `d200-install.py` | Writes `d200-full.img` from maskrom ([From maskrom](#from-maskrom)) |
 | `d200-<version>-<flavour>-update.tar` | Update bundle for the update page ([update.md](update.md)) |
 | `d200-<version>-<flavour>.zip` | The fastboot set (everything above `d200-full.img`, with its own `SHA256SUMS`), for releases |
-| `d200-<version>-<flavour>-maskrom.tar.xz` | `d200-full.img` and `rk3308_loader_wo_ftl.bin`, for releases |
+| `d200-<version>-<flavour>-maskrom.tar.xz` | `d200-full.img`, `rk3308_loader_wo_ftl.bin` and `d200-install.py`, for releases |
 | `d200-<version>-release-rkdevtool.zip` | The whole install for [RKDevTool](install.md#windows-rkdevtool) on Windows, release flavour only |
 | `SHA256SUMS` | Checksums of the above |
 

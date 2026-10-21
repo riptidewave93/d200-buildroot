@@ -57,7 +57,7 @@ previous version by itself, and the page reports that the update was rolled back
 
 ## 2. Fastboot
 
-You need `fastboot` (Android platform tools) and the [image folder](install.md#before-you-start).
+You need `fastboot` (Android platform tools) and the [image folder](flashing.md#images).
 
 1. Put the D200 in fastboot: hold the **top-left key** while plugging it in, until the screen shows a USB plug and
    "Fastboot". On a debug build, `reboot-to fastboot` over SSH does the same.

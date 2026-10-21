@@ -2,8 +2,9 @@
 # Copy the files we care about to ./output/<date>-<flavour>/, plus the release
 # downloads, keeping the last KEEP builds of each flavour (default 3, 0: all):
 #   d200-<version>-<flavour>.zip             the fastboot set (flashing.md)
-#   d200-<version>-<flavour>-maskrom.tar.xz  d200-full.img and the loader that
-#                                            rkdeveloptool needs (install.md)
+#   d200-<version>-<flavour>-maskrom.tar.xz  d200-full.img, Rockchip's flash
+#                                            loader and d200-install.py
+#                                            (install.md)
 #   d200-<version>-<flavour>-update.tar      for the update page (ota.md)
 #   d200-<version>-release-rkdevtool.zip     update.img, the loader and a README,
 #                                            for RKDevTool on Windows (install.md)
@@ -20,7 +21,7 @@ rm -rf "${out}"
 mkdir -p "${out}"
 fastboot="idbloader.img idbloader-x4.img u-boot.itb kernel.itb rootfs.ubifs ubi.img d200-usb-loader.bin flash-fastboot.sh
           u-boot-rockchip-usb471.bin u-boot-rockchip-usb472.bin"
-maskrom="d200-full.img rk3308_loader_wo_ftl.bin"
+maskrom="d200-full.img rk3308_loader_wo_ftl.bin d200-install.py"
 files="${fastboot} ${maskrom}"
 for f in ${files}; do
     cp "${images}/${f}" "${out}/"

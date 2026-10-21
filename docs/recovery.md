@@ -1,13 +1,14 @@
 # Recovery
 
 Getting a D200 working again, easiest first. Most ways end with `./flash-fastboot.sh` in the
-[image folder](install.md#before-you-start). You need `fastboot` and, for maskrom, `rkdeveloptool`.
+[image folder](flashing.md#images). You need `fastboot` (Android platform tools), and from maskrom the
+[installer](install.md#2-flash).
 
 | What you see | Use |
 |---|---|
 | A new version doesn't start properly | Nothing: the D200 goes back to the previous version by itself |
 | The boot screen shows, but the keys never come up | [1.1 Fastboot key](#11-fastboot-key). If Linux doesn't start at all, a release build is already waiting in fastboot |
-| No boot screen | [1.2 Maskrom keys](#12-maskrom-keys). If `rkdeveloptool ld` already shows "Maskrom", see [1.3](#13-automatic-maskrom) |
+| No boot screen | [1.2 Maskrom keys](#12-maskrom-keys). If the PC already sees USB device `2207:330e` (maskrom), see [1.3](#13-automatic-maskrom) |
 | No boot screen, and the maskrom keys don't work | [3. Hardware short](#3-hardware-short-last-resort) |
 | You want the stock firmware back | [4. Back to stock](#4-back-to-stock) |
 
@@ -25,24 +26,17 @@ fastboot devices          # shows the D200's serial
 From a debug build's shell: `reboot-to maskrom`. Or hold the **top-left and bottom-left keys** while plugging in
 USB-C. This works even when U-Boot is broken. The screen stays dark.
 
-Then run U-Boot from RAM and continue as in 1.1:
-```bash
-rkdeveloptool ld                             # "Maskrom"
-rkdeveloptool db d200-usb-loader.bin         # while holding the top-left key
-./flash-fastboot.sh
-```
-`d200-usb-loader.bin` doesn't write anything to the flash by itself.
-
-On Windows, RKDevTool can reinstall from maskrom instead (it erases everything, settings included): see
-[install.md](install.md#windows-rkdevtool). Fastboot skips bad NAND blocks; RKDevTool doesn't.
+Then reinstall as in [install.md, 2. Flash](install.md#2-flash); it erases everything, settings included. To keep
+your settings, try the [fastboot key](#11-fastboot-key) first: `./flash-fastboot.sh --linux` keeps them. If the D200
+doesn't start after a reinstall, try the fastboot key too; fastboot skips bad NAND blocks.
 
 ### 1.3 Automatic maskrom
 If SPL can't load U-Boot from either `u-boot` or `u-boot-backup`, it enters maskrom by itself. Continue as in 1.2.
 
 ## 2. With a UART
 
-Connect a 3.3 V UART to UART2 (TX GPIO4_D2, RX GPIO4_D3, GND) at 1500000 8N1. The U-Boot prompt and Ctrl-B only
-exist in debug builds; a release build only prints its boot log.
+Connect a 3.3 V UART to UART2 (TX GPIO4_D2, RX GPIO4_D3, GND) at 1500000 8N1. In our builds, the U-Boot
+prompt and Ctrl-B only exist in debug builds; a release build only prints its boot log.
 
 | Method | How |
 |---|---|
@@ -64,8 +58,7 @@ flash, so it falls back to maskrom.
 2. Hold one of these shorts:
    - **R9602**: the pad nearest the SoC to GND (a mounting screw works). This is Ulanzi's documented method.
    - **SPI NAND** (WSON-8): **pin 1 (CS#) to pin 8 (VCC)**. They are adjacent. Never bridge VCC to GND.
-3. Plug in USB-C while holding the short. Release once `lsusb` shows `2207:330e` (or `rkdeveloptool ld` says
-   "Maskrom").
+3. Plug in USB-C while holding the short. Release once the PC sees USB device `2207:330e` (Linux: `lsusb`).
 4. Continue as in [1.2](#12-maskrom-keys).
 
 ## 4. Back to stock

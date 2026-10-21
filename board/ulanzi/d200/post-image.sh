@@ -10,7 +10,8 @@
 #   ubi.img         the whole "ubi" partition, slot A filled (ubinize.cfg)
 #   flash-fastboot.sh     flashes all of the above over USB fastboot
 #   d200-full.img   idbloader-x4 + u-boot + u-boot-backup + ubi, for
-#                   rkdeveloptool with rk3308_loader_wo_ftl.bin (from d200-rkbin)
+#                   d200-install.py with rk3308_loader_wo_ftl.bin (from d200-rkbin)
+#   d200-install.py writes d200-full.img from maskrom
 #   update.tar      the update bundle (docs/ota.md)
 #   update.img      the whole install for RKDevTool (rkdevtool-image.py), release
 #                   flavour only
@@ -55,7 +56,7 @@ INI
 "$HOST_DIR/bin/boot_merger" "$INI"
 rm -f "$INI"
 
-install -m 0755 "$(dirname "$0")/flash-fastboot.sh" "$BINARIES_DIR/"
+install -m 0755 "$(dirname "$0")/flash-fastboot.sh" "$(dirname "$0")/d200-install.py" "$BINARIES_DIR/"
 
 if [ -f "$BINARIES_DIR/Image.gz" ]; then
 	cp "$(dirname "$0")/kernel.its" "$BINARIES_DIR/"
