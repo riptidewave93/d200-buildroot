@@ -1,5 +1,5 @@
 # Pull request titles are conventional commits (feat(deck): …, fix(linux): …):
-# they become the squashed commit's title on main, which Release Please reads.
+# they become the squashed commit's title on main.
 name: PR title
 
 on:

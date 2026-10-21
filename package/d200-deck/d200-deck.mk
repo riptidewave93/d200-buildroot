@@ -19,3 +19,7 @@ define D200_DECK_INSTALL_INIT_SYSV
 endef
 
 $(eval $(golang-package))
+
+# Download Go modules through the module proxy instead of from each module's
+# own server; go.sum still checks them, and the build stays offline
+D200_DECK_DL_ENV += GOPROXY=https://proxy.golang.org,direct
