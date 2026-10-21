@@ -9,7 +9,7 @@ Getting a D200 working again, easiest first. Most ways end with `./flash-fastboo
 | The boot screen shows, but the keys never come up | [1.1 Fastboot key](#11-fastboot-key). If Linux doesn't start at all, a release build is already waiting in fastboot |
 | No boot screen | [1.2 Maskrom keys](#12-maskrom-keys). If `rkdeveloptool ld` already shows "Maskrom", see [1.3](#13-automatic-maskrom) |
 | No boot screen, and the maskrom keys don't work | [3. Hardware short](#3-hardware-short-last-resort) |
-| You want the stock firmware back | [4. Restore the stock firmware](#4-restore-the-stock-firmware) |
+| You want the stock firmware back | [4. Back to stock](#4-back-to-stock) |
 
 ## 1. Without a UART
 
@@ -68,23 +68,12 @@ flash, so it falls back to maskrom.
    "Maskrom").
 4. Continue as in [1.2](#12-maskrom-keys).
 
-## 4. Restore the stock firmware
+## 4. Back to stock
 
-> [!NOTE]
-> This procedure is untested on a D200 that has run this firmware.
-
-This needs your backup ([install.md](install.md#1-back-up-the-stock-firmware)) and a stock Rockchip loader: the one
-from [read-unlock/](read-unlock/README.md) if you built it, or build one from
-[rkbin](https://github.com/rockchip-linux/rkbin):
-```bash
-git clone --depth 1 https://github.com/rockchip-linux/rkbin && cd rkbin
-./tools/boot_merger RKBOOT/RK3308MINIALL.ini     # -> rk3308_loader_v*.bin
-```
-Then enter maskrom (sections 1-3) and:
-```bash
-sha256sum -c d200-factory.img.sha256
-rkdeveloptool db rk3308_loader_v*.bin
-rkdeveloptool ef                                 # erase everything, so the stock flash layer starts fresh
-rkdeveloptool wl 0 d200-factory.img
-rkdeveloptool rd
-```
+Ulanzi's recovery reinstalls the stock firmware with RKDevTool on Windows; it erases everything.
+1. Enter maskrom with the [maskrom keys](#12-maskrom-keys) and erase the flash: steps 1-5 of
+   [Windows: RKDevTool](install.md#windows-rkdevtool).
+2. Unplug the D200 and plug it back in. With the flash erased, it comes up in maskrom.
+3. Continue with the **Upgrade Firmware** step of
+   [Misyuk-T/ulanzi-d200-recovery](https://github.com/Misyuk-T/ulanzi-d200-recovery) (for the RK3308H3 board, serial
+   number starting with "01": [CHADREX/ulanzi-d200-recovery](https://github.com/CHADREX/ulanzi-d200-recovery)).

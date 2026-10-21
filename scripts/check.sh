@@ -12,12 +12,12 @@ cd "${ourpath}"
 lint() {
     shellcheck -x -S warning scripts/*.sh board/ulanzi/d200/*.sh board/ulanzi/d200/rootfs-overlay/etc/init.d/* \
         package/d200-deck/S60deckd
-    python3 - board/ulanzi/d200/*.py board/ulanzi/d200/logo/*.py docs/read-unlock/*.py <<'EOF'
+    python3 - board/ulanzi/d200/*.py board/ulanzi/d200/logo/*.py <<'EOF'
 import ast, sys
 for f in sys.argv[1:]:
     ast.parse(open(f).read(), f)
 EOF
-    python3 scripts/check_doc_links.py README.md docs/*.md docs/read-unlock/README.md
+    python3 scripts/check_doc_links.py README.md docs/*.md
 }
 
 config() {
