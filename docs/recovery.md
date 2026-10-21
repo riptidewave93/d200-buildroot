@@ -33,6 +33,9 @@ rkdeveloptool db d200-usb-loader.bin         # while holding the top-left key
 ```
 `d200-usb-loader.bin` doesn't write anything to the flash by itself.
 
+On Windows, RKDevTool can reinstall from maskrom instead (it erases everything, settings included): see
+[install.md](install.md#windows-rkdevtool). Fastboot skips bad NAND blocks; RKDevTool doesn't.
+
 ### 1.3 Automatic maskrom
 If SPL can't load U-Boot from either `u-boot` or `u-boot-backup`, it enters maskrom by itself. Continue as in 1.2.
 

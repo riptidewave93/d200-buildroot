@@ -12,6 +12,8 @@
 #   d200-full.img   idbloader-x4 + u-boot + u-boot-backup + ubi, for
 #                   rkdeveloptool with rk3308_loader_wo_ftl.bin (from d200-rkbin)
 #   update.tar      the update bundle (docs/ota.md)
+#   update.img      the whole install for RKDevTool (rkdevtool-image.py), release
+#                   flavour only
 # $2: flavour (release or debug, from BR2_ROOTFS_POST_SCRIPT_ARGS)
 set -e
 FLAVOR="${2:-release}"
@@ -117,4 +119,10 @@ if [ -f "$BINARIES_DIR/Image.gz" ]; then
 	fi
 	tar -C "$BINARIES_DIR" --owner=0 --group=0 --format=ustar -cf "$BINARIES_DIR/update.tar" \
 		manifest.json $SIG $FILES
+
+	rm -f "$BINARIES_DIR/update.img"
+	if [ "$FLAVOR" = release ]; then
+		python3 "$(dirname "$0")/rkdevtool-image.py" "$BINARIES_DIR/rk3308_loader_wo_ftl.bin" \
+			"$BINARIES_DIR" "$VERSION" "$BINARIES_DIR/update.img"
+	fi
 fi

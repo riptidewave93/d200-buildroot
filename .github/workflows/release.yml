@@ -153,7 +153,8 @@ jobs:
               test -f "dist/$f" || { echo "missing $f" >&2; exit 1; }
             done
           done
-          test "$(find dist -mindepth 1 | wc -l)" -eq 6 || { echo "unexpected files in dist" >&2; exit 1; }
+          test -f "dist/d200-$TAG-release-rkdevtool.zip" || { echo "missing d200-$TAG-release-rkdevtool.zip" >&2; exit 1; }
+          test "$(find dist -mindepth 1 | wc -l)" -eq 7 || { echo "unexpected files in dist" >&2; exit 1; }
 
       - name: Check the update bundles are signed
         run: |
