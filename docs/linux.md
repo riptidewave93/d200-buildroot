@@ -10,7 +10,9 @@ from the UBI volume `kernel_a` or `kernel_b`, and the read-only UBIFS root from 
 command line, for slot A:
 ```
 console=ttyS2,1500000n8 earlycon ubi.mtd=ubi rootfstype=ubifs ro panic=10 root=ubi0:rootfs_a d200.slot=a
+d200.panel=h1 d200.panel_regs=<14 hex digits>
 ```
+`d200.panel` and `d200.panel_regs`: [hardware.md](hardware.md#panels).
 
 ## Kernel
 

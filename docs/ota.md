@@ -30,8 +30,8 @@ first update creates `kernel_b` and `rootfs_b`.
 U-Boot boots `slot` and passes it on the kernel command line as `d200.slot=a|b`. If that slot doesn't boot (empty or
 half-written volume, bad FIT hash), U-Boot boots the other slot in the same boot.
 
-The env is stored in the UBI volumes `env` and `env_r` (redundant). U-Boot imports only these four variables from
-it; everything else comes from the running U-Boot's defaults:
+The env is stored in the UBI volumes `env` and `env_r` (redundant). U-Boot imports only these variables from it;
+everything else comes from the running U-Boot's defaults:
 
 | Variable | Values | Meaning |
 |---|---|---|
@@ -39,6 +39,7 @@ it; everything else comes from the running U-Boot's defaults:
 | `upgrade_available` | `0`, `1` | `1`: the slot is on trial, and every boot counts |
 | `bootcount` | number | Boots since the trial started. Past 3, U-Boot switches `slot` and sets `upgrade_available=0`, `bootcount=0`, `ota_result=rolled-back` |
 | `ota_result` | `trial`, `ok`, `failed`, `rolled-back`, `fell-back` | Outcome of the last update, or `fell-back` when the stable slot stopped booting |
+| `panel` | `h1`, `h3`, `auto` | Panel config; unset or `auto`: detect ([hardware.md](hardware.md#panels)) |
 
 Linux reads and writes them with `fw_printenv` / `fw_setenv`. A fresh install has an empty env; the tools then use
 `slot=a`.
