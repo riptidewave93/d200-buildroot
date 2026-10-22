@@ -22,11 +22,11 @@ Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
  2 files changed, 128 insertions(+), 20 deletions(-)
 
 diff --git a/board/ulanzi/d200/Makefile b/board/ulanzi/d200/Makefile
-index 85fccc03..cc6881ef 100644
+index d8c5277a..d90febde 100644
 --- a/board/ulanzi/d200/Makefile
 +++ b/board/ulanzi/d200/Makefile
 @@ -4,4 +4,10 @@ ifdef CONFIG_XPL_BUILD
- obj-$(CONFIG_SPL_BOARD_INIT)	+= spl.o
+ obj-y	+= spl.o
  else
  obj-y	+= d200.o
 +

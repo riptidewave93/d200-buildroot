@@ -69,7 +69,7 @@ index 00000000..a960e114
 +	setenv upgrade_available 0; setenv bootcount 0;
 +	setenv ota_result rolled-back; saveenv; run bootcmd
 diff --git a/configs/ulanzi-d200-rk3308_defconfig b/configs/ulanzi-d200-rk3308_defconfig
-index 8c2593f6..1c7c4eef 100644
+index a2f2681e..95f14bcc 100644
 --- a/configs/ulanzi-d200-rk3308_defconfig
 +++ b/configs/ulanzi-d200-rk3308_defconfig
 @@ -14,7 +14,7 @@ CONFIG_DEBUG_UART=y
@@ -81,7 +81,7 @@ index 8c2593f6..1c7c4eef 100644
  # CONFIG_BOOTSTD_BOOTCOMMAND is not set
  CONFIG_USE_PREBOOT=y
  CONFIG_DEFAULT_FDT_FILE="rockchip/rk3308-ulanzi-d200.dtb"
-@@ -118,7 +118,16 @@ CONFIG_FASTBOOT_FLASH=y
+@@ -117,6 +117,15 @@ CONFIG_FASTBOOT_FLASH=y
  CONFIG_FASTBOOT_FLASH_MTD=y
  CONFIG_FASTBOOT_FLASH_MTD_UBI=y
  CONFIG_FASTBOOT_FLASH_MTD_UBI_PART="ubi"
@@ -89,7 +89,6 @@ index 8c2593f6..1c7c4eef 100644
  CONFIG_FASTBOOT_OEM_RUN=y
  CONFIG_CONSOLE_RECORD=y
  CONFIG_FASTBOOT_CMD_OEM_CONSOLE=y
- CONFIG_SPL_BOARD_INIT=y
 +# A/B boot, see board/ulanzi/d200/ulanzi-d200.env
 +CONFIG_ENV_SOURCE_FILE="ulanzi-d200"
 +CONFIG_BOOTCOUNT_LIMIT=y
