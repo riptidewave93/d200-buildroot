@@ -12,8 +12,9 @@ target and config header.
 - If SPL cannot boot anything it enters maskrom mode, as it does on
   Ctrl-B on the console during power on; the 'maskrom' command does
   the same from U-Boot.
-- The DesignWare watchdog may already be running when U-Boot starts
-  (USB boot path, ~21 s), so WDT support is enabled to service it.
+- The DesignWare watchdog is started (60 s timeout) and serviced while
+  U-Boot runs, so a boot that hangs before Linux takes the watchdog over
+  resets the board.
 - serial# and cpuid# are derived from the CPU ID in OTP (MISC_INIT_R).
 - Display: RK3308 VOP + command-sequence panel + PWM backlight,
   with the VOP bound before relocation so the framebuffer is reserved.
@@ -406,7 +407,7 @@ index 00000000..a2f2681e
 +CONFIG_CONSOLE_RECORD=y
 +CONFIG_FASTBOOT_CMD_OEM_CONSOLE=y
 diff --git a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
-index 1def9132..f890ad31 100644
+index fca2a0d3..c4ce1992 100644
 --- a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
 +++ b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
 @@ -370,5 +370,11 @@
