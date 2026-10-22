@@ -12,8 +12,9 @@ target and config header.
 - If SPL cannot boot anything it enters maskrom mode, as it does on
   Ctrl-B on the console during power on; the 'maskrom' command does
   the same from U-Boot.
-- The DesignWare watchdog may already be running when U-Boot starts
-  (USB boot path, ~21 s), so WDT support is enabled to service it.
+- The DesignWare watchdog is started (60 s timeout) and serviced while
+  U-Boot runs, so a boot that hangs before Linux takes the watchdog over
+  resets the board.
 - serial# and cpuid# are derived from the CPU ID in OTP (MISC_INIT_R).
 - Display: RK3308 VOP + command-sequence panel + PWM backlight,
   with the VOP bound before relocation so the framebuffer is reserved.
@@ -34,8 +35,6 @@ target and config header.
 - preboot is enabled, so a reboot into the fastboot boot mode (e.g.
   "reboot fastboot" with the Linux syscon reboot-mode driver) starts
   fastboot.
-- A maskrom USB boot image is built for development
-  (u-boot-rockchip-usb471.bin / usb472.bin).
 
 Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
 ---
@@ -45,10 +44,10 @@ Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
  board/ulanzi/d200/MAINTAINERS                 |   8 ++
  board/ulanzi/d200/Makefile                    |   3 +
  board/ulanzi/d200/d200.c                      |  97 ++++++++++++++
- configs/ulanzi-d200-rk3308_defconfig          | 123 ++++++++++++++++++
+ configs/ulanzi-d200-rk3308_defconfig          | 122 ++++++++++++++++++
  .../src/arm64/rockchip/rk3308-ulanzi-d200.dts |   6 +
  include/configs/ulanzi_d200.h                 |  17 +++
- 9 files changed, 321 insertions(+)
+ 9 files changed, 320 insertions(+)
  create mode 100644 arch/arm/dts/rk3308-ulanzi-d200-u-boot.dtsi
  create mode 100644 board/ulanzi/d200/Kconfig
  create mode 100644 board/ulanzi/d200/MAINTAINERS
@@ -281,10 +280,10 @@ index 00000000..54a728b9
 +}
 diff --git a/configs/ulanzi-d200-rk3308_defconfig b/configs/ulanzi-d200-rk3308_defconfig
 new file mode 100644
-index 00000000..87e6a68f
+index 00000000..a2f2681e
 --- /dev/null
 +++ b/configs/ulanzi-d200-rk3308_defconfig
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,122 @@
 +CONFIG_ARM=y
 +CONFIG_SKIP_LOWLEVEL_INIT=y
 +CONFIG_COUNTER_FREQUENCY=24000000
@@ -349,7 +348,6 @@ index 00000000..87e6a68f
 +CONFIG_LZO=y
 +CONFIG_ERRNO_STR=y
 +# --- D200 additions ---
-+CONFIG_ROCKCHIP_MASKROM_IMAGE=y
 +CONFIG_SPI=y
 +CONFIG_DM_SPI=y
 +CONFIG_SPI_MEM=y
@@ -409,7 +407,7 @@ index 00000000..87e6a68f
 +CONFIG_CONSOLE_RECORD=y
 +CONFIG_FASTBOOT_CMD_OEM_CONSOLE=y
 diff --git a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
-index 1def9132..f890ad31 100644
+index fca2a0d3..c4ce1992 100644
 --- a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
 +++ b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
 @@ -370,5 +370,11 @@

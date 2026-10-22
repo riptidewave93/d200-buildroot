@@ -33,7 +33,7 @@ Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
 
 diff --git a/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
 new file mode 100644
-index 00000000..1def9132
+index 00000000..fca2a0d3
 --- /dev/null
 +++ b/dts/upstream/src/arm64/rockchip/rk3308-ulanzi-d200.dts
 @@ -0,0 +1,374 @@
@@ -318,8 +318,8 @@ index 00000000..1def9132
 +};
 +
 +/*
-+ * The watchdog can already be running when U-Boot starts (e.g. after a USB
-+ * download boot, ~21 s timeout), so it must be serviced.
++ * U-Boot starts the watchdog, so it is already running at handoff and
++ * must be serviced.
 + */
 +&wdt {
 +	status = "okay";
