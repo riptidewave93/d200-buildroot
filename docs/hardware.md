@@ -5,10 +5,10 @@ port.
 
 | Part | Details |
 |---|---|
-| SoC | Rockchip **RK3308B-S**, 4x Cortex-A35, runs 64-bit |
-| RAM | 128 MiB DDR3. Linux/U-Boot see 126 MiB: BL31 owns the first 2 MiB |
+| SoC | Rockchip **RK3308B-S**, 4x Cortex-A35, runs 64-bit. Marked **RK3308H1** (128 MiB RAM) or **RK3308H3** (256 MiB) |
+| RAM | 128 or 256 MiB. Linux/U-Boot see 2 MiB less: BL31 owns the first 2 MiB |
 | Storage | 256 MiB SPI NAND, GigaDevice **GD5F2GM7**: 128 KiB blocks, 2 KiB pages, on-die ECC |
-| Display | 720x1280 RGB panel (NewVision **NV3052C**), mounted rotated, used as 1280x720 landscape |
+| Display | 720x1280 RGB panel (NewVision **NV3052C**), one of [two types](#panels), mounted rotated, used as 1280x720 landscape |
 | Keys | 5x3 GPIO matrix (bottom-right key is double-wide) |
 | Console | UART2 (TX GPIO4_D2, RX GPIO4_D3), **1500000 8N1** |
 | USB | USB-C, DWC2 controller in device mode (maskrom, fastboot, Linux gadget) |
@@ -36,6 +36,31 @@ Above **90 °C** Linux lowers the clock, at **115 °C** it shuts down, at **120 
 ## Display
 
 U-Boot and Linux drive the panel from the same `rockchip,cmd-panel` node in `rk3308-ulanzi-d200.dts`.
+
+### Panels
+
+D200s come with one of two panels. Each needs its own timings and init sequence; with the wrong one, the picture is
+wavy and stretched.
+
+| Panel | Config | Usually found with |
+|---|---|---|
+| `h1` | `rk3308-ulanzi-d200.dts` | RK3308H1 (128 MiB) |
+| `h3` | the `rk3308-ulanzi-d200-panel-h3.dtso` overlay | RK3308H3 (256 MiB) |
+
+U-Boot picks the panel before it shows the boot logo, and boots Linux with the matching device tree (the `h1` or
+`h3` configuration in `kernel.itb`). In order:
+
+1. The `panel` variable in the U-Boot env, if it is `h1` or `h3` (unset or `auto`: detect).
+2. The SoC: 128 MiB of RAM picks `h1`, 256 MiB picks `h3`.
+3. Otherwise `h1`.
+
+If the picture is wavy or stretched, set the panel from Linux. It applies from the next boot and stays across updates
+and device resets, but not a full install:
+```
+fw_setenv panel h3     # or h1; "fw_setenv panel" goes back to detection
+```
+The U-Boot console logs the choice (`panel: unknown, SoC H3 (256 MiB) -> h3`), and Linux gets it on the command
+line as `d200.panel=`, next to `d200.panel_regs=`, the panel's registers `0x78`-`0x7e` (page 1) in hex.
 
 ### Screen layout
 

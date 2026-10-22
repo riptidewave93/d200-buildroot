@@ -70,7 +70,7 @@ patches() {
 
     # U-Boot and Linux build the D200 from the same DT files
     local f
-    for f in rk3308-ulanzi-d200.dts rk3308bs.dtsi; do
+    for f in rk3308-ulanzi-d200.dts rk3308-ulanzi-d200-panel-h3.dtso rk3308bs.dtsi; do
         cmp "${u}/dts/upstream/src/arm64/rockchip/${f}" "${k}/arch/arm64/boot/dts/rockchip/${f}"
     done
 
@@ -79,7 +79,7 @@ patches() {
     "${kmake[@]}" olddefconfig
     "${kmake[@]}" savedefconfig
     diff -u "${board}/linux.config" "${k}/defconfig"
-    "${kmake[@]}" rockchip/rk3308-ulanzi-d200.dtb
+    "${kmake[@]}" rockchip/rk3308-ulanzi-d200.dtb rockchip/rk3308-ulanzi-d200-panel-h3.dtbo
     echo "patches: ok (U-Boot ${uver}, Linux ${lver})"
 }
 

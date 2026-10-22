@@ -1,0 +1,443 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Chris Blake <chrisrblake93@gmail.com>
+Date: Thu, 22 Oct 2026 15:45:00 -0500
+Subject: [PATCH 21/21] board: ulanzi: d200: pick the panel at boot
+
+The D200 has one of two panels, which need different timings and init
+sequences: the one rk3308-ulanzi-d200.dts describes ("h1"), or the one
+of the rk3308-ulanzi-d200-panel-h3 overlay ("h3"). Pick it before the
+display is probed, in this order:
+
+- the "panel" env variable, if it is h1 or h3 (unset or "auto": detect).
+  It is kept in the saved env (ENV_FLAGS_LIST_STATIC), so Linux can set
+  it with fw_setenv;
+- the panel's own registers, read over its 3-wire SPI link and matched
+  against a table. No register is known to tell the panels apart yet,
+  so the table is empty;
+- the SoC variant, by RAM size: 128 MiB (RK3308H1) usually comes with
+  the h1 panel, 256 MiB (RK3308H3) with the h3 one;
+- otherwise h1.
+
+For h3 the overlay, built into U-Boot, is applied to the live control
+DT, so the boot logo already uses it. The choice goes to the boot script
+as d200_panel: Linux boots the FIT configuration of that name, which
+applies the same overlay, and gets d200.panel= on its command line. A
+FIT image without that configuration boots its default one.
+
+To find registers that identify the panel, page 1 registers 0x78-0x7e
+are read at every boot after a reset of the panel, printed and passed to
+Linux as d200.panel_regs=. This adds about 0.2 s to the boot.
+
+Signed-off-by: Chris Blake <chrisrblake93@gmail.com>
+---
+ board/ulanzi/d200/Makefile           |   8 +-
+ board/ulanzi/d200/d200.c             |   5 +-
+ board/ulanzi/d200/panel.c            | 281 +++++++++++++++++++++++++++
+ board/ulanzi/d200/panel.h            |   8 +
+ board/ulanzi/d200/ulanzi-d200.env    |  22 ++-
+ configs/ulanzi-d200-rk3308_defconfig |   2 +-
+ 6 files changed, 316 insertions(+), 10 deletions(-)
+ create mode 100644 board/ulanzi/d200/panel.c
+ create mode 100644 board/ulanzi/d200/panel.h
+
+diff --git a/board/ulanzi/d200/Makefile b/board/ulanzi/d200/Makefile
+index d90febde..551650d2 100644
+--- a/board/ulanzi/d200/Makefile
++++ b/board/ulanzi/d200/Makefile
+@@ -3,7 +3,13 @@
+ ifdef CONFIG_XPL_BUILD
+ obj-y	+= spl.o
+ else
+-obj-y	+= d200.o
++obj-y	+= d200.o panel.o
++
++# The panel overlays, shared with Linux
++obj-y	+= rk3308-ulanzi-d200-panel-h3.dtbo.o
++targets	+= rk3308-ulanzi-d200-panel-h3.dtbo
++$(obj)/%.dtbo: $(srctree)/dts/upstream/src/arm64/rockchip/%.dtso FORCE
++	$(call if_changed_dep,dtco)
+ 
+ # Optional built-in fastboot screen, added to the tree at build time
+ ifneq ($(wildcard $(srctree)/$(src)/d200_fastboot.bmp),)
+diff --git a/board/ulanzi/d200/d200.c b/board/ulanzi/d200/d200.c
+index 5ea32ca5..2b61a6b9 100644
+--- a/board/ulanzi/d200/d200.c
++++ b/board/ulanzi/d200/d200.c
+@@ -14,6 +14,7 @@
+ #include <linux/delay.h>
+ #include <linux/sizes.h>
+ #include "keys.h"
++#include "panel.h"
+ 
+ #if IS_ENABLED(CONFIG_CMD_UBI)
+ #include <ubi_uboot.h>
+@@ -175,7 +176,7 @@ static void d200_fastboot_key(struct udevice *dev, bool user_splash)
+ 
+ /*
+  * The console is on the UART only, so nothing would probe the display.
+- * Probe it here so the panel comes up and shows the boot screen, then
++ * Pick the panel, probe the display so it shows the boot screen, then
+  * offer the fastboot key.
+  */
+ int rk_board_late_init(void)
+@@ -184,6 +185,8 @@ int rk_board_late_init(void)
+ 	struct udevice *dev;
+ 	int ret;
+ 
++	d200_panel_select();
++
+ 	ret = uclass_first_device_err(UCLASS_VIDEO, &dev);
+ 	if (ret) {
+ 		log_warning("display: probe failed: %d\n", ret);
+diff --git a/board/ulanzi/d200/panel.c b/board/ulanzi/d200/panel.c
+new file mode 100644
+index 00000000..f09fe113
+--- /dev/null
++++ b/board/ulanzi/d200/panel.c
+@@ -0,0 +1,281 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Ulanzi D200 panel selection
++ *
++ * The D200 has one of two panels that need different timings and init
++ * sequences. The DT describes the "h1" panel; the "h3" one is an overlay on
++ * it. Pick the panel before the display is probed, apply its overlay to the
++ * control DT, and set d200_panel, which the boot script uses as the FIT
++ * configuration for Linux.
++ *
++ * The pick: the "panel" env variable if it is h1 or h3, else the panel the
++ * ID table recognises, else the SoC variant (by RAM size), else h1.
++ */
++
++#include <dm.h>
++#include <env.h>
++#include <log.h>
++#include <asm/global_data.h>
++#include <asm/gpio.h>
++#include <dm/ofnode.h>
++#include <dm/pinctrl.h>
++#include <dm/uclass-internal.h>
++#include <linux/delay.h>
++#include <linux/sizes.h>
++#include "panel.h"
++
++DECLARE_GLOBAL_DATA_PTR;
++
++enum { D200_PANEL_H1, D200_PANEL_H3 };
++
++extern u8 __dtbo_rk3308_ulanzi_d200_panel_h3_begin[];
++
++static const struct {
++	const char *name;
++	void *overlay;
++} d200_panels[] = {
++	[D200_PANEL_H1] = { "h1", NULL },
++	[D200_PANEL_H3] = { "h3", __dtbo_rk3308_ulanzi_d200_panel_h3_begin },
++};
++
++/* Panels told apart by a register value. None is proven yet. */
++static const struct {
++	u8 page, reg, val;
++	int panel;
++} d200_panel_ids[] = {
++};
++
++/* Logged at every boot, to find registers that tell the panels apart */
++#define D200_LOG_PAGE		1
++#define D200_LOG_FIRST		0x78
++#define D200_LOG_COUNT		7
++
++static const struct {
++	phys_size_t ram;
++	const char *soc;
++	int panel;
++} d200_socs[] = {
++	{ SZ_128M, "H1", D200_PANEL_H1 },
++	{ SZ_256M, "H3", D200_PANEL_H3 },
++};
++
++/* 3-wire SPI to the panel, bit-banged as the panel node describes it */
++enum { SPI_SCL, SPI_SDA, SPI_CS, SPI_ENABLE, SPI_RESET, SPI_GPIOS };
++
++static const char *const d200_spi_props[SPI_GPIOS] = {
++	"spi-scl-gpios", "spi-sdi-gpios", "spi-cs-gpios", "enable-gpios",
++	"reset-gpios",
++};
++
++/* One 9-bit word, MSB first: SDA changes while SCL is low */
++static void d200_spi_word(struct gpio_desc *g, uint word)
++{
++	int i;
++
++	for (i = 8; i >= 0; i--) {
++		dm_gpio_set_value(&g[SPI_SCL], 0);
++		dm_gpio_set_value(&g[SPI_SDA], (word >> i) & 1);
++		udelay(10);
++		dm_gpio_set_value(&g[SPI_SCL], 1);
++		udelay(10);
++	}
++}
++
++/* CS is described active high, so 0 selects the panel */
++static void d200_spi_page(struct gpio_desc *g, u8 page)
++{
++	const u8 params[] = { 0x30, 0x52, page };
++	int i;
++
++	dm_gpio_set_value(&g[SPI_CS], 0);
++	d200_spi_word(g, 0xff);
++	for (i = 0; i < ARRAY_SIZE(params); i++)
++		d200_spi_word(g, 0x100 | params[i]);
++	dm_gpio_set_value(&g[SPI_CS], 1);
++}
++
++static u8 d200_spi_read(struct gpio_desc *g, u8 reg)
++{
++	u8 val = 0;
++	int i;
++
++	dm_gpio_set_value(&g[SPI_CS], 0);
++	d200_spi_word(g, reg);
++	dm_gpio_set_dir_flags(&g[SPI_SDA], GPIOD_IS_IN);
++	for (i = 0; i < 8; i++) {
++		dm_gpio_set_value(&g[SPI_SCL], 0);
++		udelay(10);
++		dm_gpio_set_value(&g[SPI_SCL], 1);
++		udelay(10);
++		val = val << 1 | dm_gpio_get_value(&g[SPI_SDA]);
++	}
++	dm_gpio_set_value(&g[SPI_CS], 1);
++	dm_gpio_set_dir_flags(&g[SPI_SDA], GPIOD_IS_OUT | GPIOD_IS_OUT_ACTIVE);
++
++	return val;
++}
++
++/* The panel that the ID table recognises, or -1 */
++static int d200_panel_identify(struct gpio_desc *g)
++{
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(d200_panel_ids); i++) {
++		d200_spi_page(g, d200_panel_ids[i].page);
++		if (d200_spi_read(g, d200_panel_ids[i].reg) == d200_panel_ids[i].val)
++			return d200_panel_ids[i].panel;
++	}
++
++	return -1;
++}
++
++/*
++ * Power up and reset the panel, write the logged registers to @regs as hex
++ * and identify the panel. Returns the panel, or -1. The GPIOs are freed
++ * again for the panel driver.
++ */
++static int d200_panel_read(char *regs)
++{
++	struct gpio_desc g[SPI_GPIOS] = {};
++	struct udevice *dev;
++	int i, ret, panel;
++
++	ret = uclass_find_first_device(UCLASS_PANEL, &dev);
++	if (ret || !dev)
++		return -1;
++	pinctrl_select_state(dev, "default");
++
++	for (i = 0; i < SPI_GPIOS; i++) {
++		ret = gpio_request_by_name(dev, d200_spi_props[i], 0, &g[i],
++					   i == SPI_ENABLE || i == SPI_RESET ?
++					   GPIOD_IS_OUT :
++					   GPIOD_IS_OUT | GPIOD_IS_OUT_ACTIVE);
++		if (ret) {
++			log_warning("panel: no %s: %d\n", d200_spi_props[i], ret);
++			gpio_free_list_nodev(g, i);
++			return -1;
++		}
++	}
++
++	dm_gpio_set_value(&g[SPI_ENABLE], 1);
++	mdelay(20);
++	dm_gpio_set_value(&g[SPI_RESET], 1);
++	mdelay(20);
++	dm_gpio_set_value(&g[SPI_RESET], 0);
++	mdelay(150);
++
++	d200_spi_page(g, D200_LOG_PAGE);
++	for (i = 0; i < D200_LOG_COUNT; i++)
++		sprintf(regs + 2 * i, "%02x", d200_spi_read(g, D200_LOG_FIRST + i));
++	panel = d200_panel_identify(g);
++
++	gpio_free_list_nodev(g, SPI_GPIOS);
++
++	return panel;
++}
++
++static int d200_copy_node(ofnode dst, ofnode src)
++{
++	ofnode sub, node;
++	int ret;
++
++	ret = ofnode_copy_props(dst, src);
++	if (ret)
++		return ret;
++
++	ofnode_for_each_subnode(sub, src) {
++		ret = ofnode_add_subnode(dst, ofnode_get_name(sub), &node);
++		if (ret && ret != -EEXIST)
++			return ret;
++		ret = d200_copy_node(node, sub);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
++/* Apply an overlay made of target-path fragments to the live control DT */
++static int d200_apply_overlay(void *dtbo)
++{
++	oftree tree = oftree_from_fdt(dtbo);
++	ofnode frag, target, ov;
++	const char *path;
++	int ret;
++
++	if (!oftree_valid(tree))
++		return -EINVAL;
++
++	ofnode_for_each_subnode(frag, oftree_root(tree)) {
++		path = ofnode_read_string(frag, "target-path");
++		if (!path)
++			continue;
++		target = ofnode_path(path);
++		ov = ofnode_find_subnode(frag, "__overlay__");
++		if (!ofnode_valid(target) || !ofnode_valid(ov))
++			return -ENOENT;
++		ret = d200_copy_node(target, ov);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
++static int d200_panel_by_name(const char *name)
++{
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(d200_panels); i++)
++		if (!strcmp(name, d200_panels[i].name))
++			return i;
++
++	return -1;
++}
++
++void d200_panel_select(void)
++{
++	char regs[2 * D200_LOG_COUNT + 1] = "";
++	const char *set = env_get("panel");
++	const char *soc = "unknown";
++	int i, ret, id, panel = -1;
++
++	id = d200_panel_read(regs);
++	if (regs[0])
++		printf("panel: page %d regs %02x-%02x: %s\n", D200_LOG_PAGE,
++		       D200_LOG_FIRST, D200_LOG_FIRST + D200_LOG_COUNT - 1, regs);
++
++	if (set && strcmp(set, "auto")) {
++		panel = d200_panel_by_name(set);
++		if (panel < 0)
++			log_warning("panel: ignoring panel=%s\n", set);
++	}
++
++	if (panel >= 0) {
++		printf("panel: override -> %s\n", d200_panels[panel].name);
++	} else if (id >= 0) {
++		panel = id;
++		printf("panel: identified -> %s\n", d200_panels[panel].name);
++	} else {
++		panel = D200_PANEL_H1;
++		for (i = 0; i < ARRAY_SIZE(d200_socs); i++) {
++			if (gd->ram_size == d200_socs[i].ram) {
++				soc = d200_socs[i].soc;
++				panel = d200_socs[i].panel;
++			}
++		}
++		printf("panel: unknown, SoC %s (%llu MiB) -> %s\n", soc,
++		       (unsigned long long)gd->ram_size >> 20,
++		       d200_panels[panel].name);
++	}
++
++	if (d200_panels[panel].overlay) {
++		ret = d200_apply_overlay(d200_panels[panel].overlay);
++		if (ret)
++			log_err("panel: cannot apply the %s overlay: %d\n",
++				d200_panels[panel].name, ret);
++	}
++
++	env_set("d200_panel", d200_panels[panel].name);
++	env_set("d200_panel_regs", regs);
++}
+diff --git a/board/ulanzi/d200/panel.h b/board/ulanzi/d200/panel.h
+new file mode 100644
+index 00000000..6e5c8268
+--- /dev/null
++++ b/board/ulanzi/d200/panel.h
+@@ -0,0 +1,8 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++
++#ifndef __D200_PANEL_H
++#define __D200_PANEL_H
++
++void d200_panel_select(void);
++
++#endif
+diff --git a/board/ulanzi/d200/ulanzi-d200.env b/board/ulanzi/d200/ulanzi-d200.env
+index a960e114..fd77343e 100644
+--- a/board/ulanzi/d200/ulanzi-d200.env
++++ b/board/ulanzi/d200/ulanzi-d200.env
+@@ -10,21 +10,29 @@
+  * failed boots altbootcmd runs d200_altboot, which switches back. Linux
+  * sets upgrade_available=0 once the new slot is good.
+  *
+- * Only slot, upgrade_available, bootcount and ota_result are taken from
+- * the saved env (ENV_WRITEABLE_LIST); everything else always comes from
+- * here.
++ * The board code sets d200_panel (h1 or h3, see panel.c), the FIT
++ * configuration with that panel's DT, and d200_panel_regs. "panel" (h1, h3
++ * or auto) overrides the panel detection. A kernel.itb without these
++ * configurations boots its default one.
++ *
++ * Only slot, upgrade_available, bootcount, ota_result and panel are taken
++ * from the saved env (ENV_WRITEABLE_LIST); everything else always comes
++ * from here.
+  */
+ slot=a
+ upgrade_available=0
+ d200_args=console=ttyS2,1500000n8 earlycon ubi.mtd=ubi rootfstype=ubifs ro panic=10
+ boot_a=
+ 	ubi read ${kernel_addr_r} kernel_a &&
+-	setenv bootargs ${d200_args} root=ubi0:rootfs_a d200.slot=a &&
+-	bootm ${kernel_addr_r}
++	setenv bootargs ${d200_args} root=ubi0:rootfs_a d200.slot=a
++		d200.panel=${d200_panel} d200.panel_regs=${d200_panel_regs} &&
++	run d200_bootm
+ boot_b=
+ 	ubi read ${kernel_addr_r} kernel_b &&
+-	setenv bootargs ${d200_args} root=ubi0:rootfs_b d200.slot=b &&
+-	bootm ${kernel_addr_r}
++	setenv bootargs ${d200_args} root=ubi0:rootfs_b d200.slot=b
++		d200.panel=${d200_panel} d200.panel_regs=${d200_panel_regs} &&
++	run d200_bootm
++d200_bootm=bootm ${kernel_addr_r}#${d200_panel} || bootm ${kernel_addr_r}
+ d200_boot=
+ 	ubi part ubi;
+ 	if test "${slot}" = b; then run boot_b; run boot_a;
+diff --git a/configs/ulanzi-d200-rk3308_defconfig b/configs/ulanzi-d200-rk3308_defconfig
+index 95f14bcc..72185b82 100644
+--- a/configs/ulanzi-d200-rk3308_defconfig
++++ b/configs/ulanzi-d200-rk3308_defconfig
+@@ -128,4 +128,4 @@ CONFIG_BOOTCOUNT_ENV=y
+ CONFIG_BOOTCOUNT_BOOTLIMIT=3
+ CONFIG_BOOTCOUNT_ALTBOOTCMD="run d200_altboot"
+ CONFIG_ENV_WRITEABLE_LIST=y
+-CONFIG_ENV_FLAGS_LIST_STATIC="slot:sw,upgrade_available:dw,bootcount:dw,ota_result:sw"
++CONFIG_ENV_FLAGS_LIST_STATIC="slot:sw,upgrade_available:dw,bootcount:dw,ota_result:sw,panel:sw"
