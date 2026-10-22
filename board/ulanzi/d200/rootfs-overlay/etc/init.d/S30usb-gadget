@@ -217,8 +217,14 @@ start() {
 	echo 0x01 > bDeviceProtocol
 	mkdir strings/0x409
 	echo Ulanzi > strings/0x409/manufacturer
-	echo D200 > strings/0x409/product
-	serial > strings/0x409/serialnumber
+	# "D200-" + the serial's last 6 characters, to tell D200s apart in device pickers
+	sn=$(serial)
+	if [ ${#sn} -ge 6 ]; then
+		echo "D200-${sn#"${sn%??????}"}"
+	else
+		echo D200
+	fi > strings/0x409/product
+	echo "$sn" > strings/0x409/serialnumber
 
 	mkdir configs/c.1 configs/c.1/strings/0x409
 	echo D200 > configs/c.1/strings/0x409/configuration

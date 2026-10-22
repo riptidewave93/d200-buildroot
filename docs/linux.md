@@ -66,7 +66,8 @@ later. `deckd` sets it from the PC when the PC app connects, and saves it.
 
 ## USB
 
-The USB-C port is one composite device, `1d6b:0104` "Ulanzi D200", whose USB serial number is the CPU serial.
+The USB-C port is one composite device, `1d6b:0104` "Ulanzi D200-XXXXXX", whose USB serial number is the CPU serial;
+`XXXXXX` is its last 6 characters.
 Functions are set in `/etc/default/usb-gadget`:
 
 | Function | PC sees | D200 side |
