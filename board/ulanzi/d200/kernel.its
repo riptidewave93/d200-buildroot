@@ -30,15 +30,33 @@
 				algo = "sha256";
 			};
 		};
+
+		fdt-panel-h3 {
+			description = "Ulanzi D200 h3 panel overlay";
+			data = /incbin/("rk3308-ulanzi-d200-panel-h3.dtbo");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+			hash {
+				algo = "sha256";
+			};
+		};
 	};
 
+	/* One per panel, named as U-Boot's d200_panel */
 	configurations {
-		default = "d200";
+		default = "h1";
 
-		d200 {
-			description = "Ulanzi D200";
+		h1 {
+			description = "Ulanzi D200, h1 panel";
 			kernel = "kernel";
 			fdt = "fdt";
+		};
+
+		h3 {
+			description = "Ulanzi D200, h3 panel";
+			kernel = "kernel";
+			fdt = "fdt", "fdt-panel-h3";
 		};
 	};
 };
